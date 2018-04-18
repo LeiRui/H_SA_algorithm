@@ -1,6 +1,7 @@
 package SA;
 
 import HModel.Column_ian;
+import query.AckSeq;
 import query.RangeQuery;
 
 import java.math.BigDecimal;
@@ -65,7 +66,7 @@ public class Test {
         findOneBest.calculate(new int[]{2,3,1});
         findOneBest.calculate(new int[]{3,2,1});
 
-        findOneBest.SA_b();
+        findOneBest.combine();
 
 
     }

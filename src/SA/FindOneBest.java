@@ -2,15 +2,13 @@ package SA;
 
 import HModel.Column_ian;
 import HModel.H_ian;
+import query.AckSeq;
 import query.RangeQuery;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 /**
  * 改进数据存储结构，利用H模型和SA得到近似最优的一种排序键排列解
@@ -33,12 +31,12 @@ public class FindOneBest {
     public BigDecimal HB;
 
     // best so far
-    //public double HR_best;
-    //public int[] ackSeq_bestR;
     public BigDecimal HB_best_bigloop;// 用于收敛准则判断：best_so_far连续20步保持不变
     public BigDecimal HB_best_current;
-    public List<int[]> ackSeq_bestB; // 两步式SA的第一步 改进
+    public Set<AckSeq> ackSeq_bestB; // 两步式SA的第一步 改进
 
+    public Set<AckSeq> ackSeq_bestR; // 两步式SA的第二步
+    public BigDecimal HR_best; // 两步式SA的第二步
 
     public FindOneBest(BigDecimal totalRowNumber, int ckn, List<Column_ian>CKdist,
                        int rowSize, int blockSize,
@@ -50,7 +48,8 @@ public class FindOneBest {
         this.blockSize = blockSize;
         this.queriesPerc = queriesPerc;
         this.queries = queries;
-        this.ackSeq_bestB = new ArrayList<>();
+        this.ackSeq_bestB = new HashSet<>();
+        this.ackSeq_bestR = new HashSet<>();
     }
 
 
@@ -146,13 +145,14 @@ public class FindOneBest {
                 int[] nextAckSeq = generateNewState(currentAckSeq);
                 //接受函数接受否
                  //增加记忆性
-                if(HB.compareTo(HB_best_current)==-1) { //<
+                int comp = HB.compareTo(HB_best_current);
+                if(comp==-1) { //<
                     HB_best_current = HB;
                     ackSeq_bestB.clear();
-                    ackSeq_bestB.add(currentAckSeq);
+                    ackSeq_bestB.add(new AckSeq(currentAckSeq));
                 }
-                else if(HB==HB_best_current) {
-                    ackSeq_bestB.add(currentAckSeq);
+                else if(comp==0) {
+                    ackSeq_bestB.add(new AckSeq(currentAckSeq));
                 }
 
                 BigDecimal currentHB = new BigDecimal(HB.toString()); // 当前状态的状态值保存在HB
@@ -164,7 +164,7 @@ public class FindOneBest {
                 }
                 else {
                     //threshold = Math.exp(-delta/t0);
-                    threshold = Math.exp(delta.negate().divide(t0,2, RoundingMode.HALF_UP).doubleValue()); //TODO
+                    threshold = Math.exp(delta.negate().divide(t0,10, RoundingMode.HALF_UP).doubleValue()); //TODO
                 }
 
                 if(Math.random() <= threshold) { // 概率接受，替换当前状态
@@ -179,7 +179,7 @@ public class FindOneBest {
 
             if(HB_best_current != HB_best_bigloop) {
                 endCount = 1; // 重新计数
-                HB_best_bigloop = HB_best_current;
+                HB_best_bigloop = HB_best_current; // 把当前最小值传递给外圈循环
             }
             else { // 这次退温后best_so_far和上次比没有改变
                 endCount++;
@@ -189,10 +189,50 @@ public class FindOneBest {
             t0 = t0.multiply(deTemperature);
         }
         //终止 输出结果
-        System.out.println(HB_best_current);
-        System.out.println(HB_best_bigloop);
-        System.out.println(ackSeq_bestB.size());
 
+    }
+
+    /**
+     * 改进SA两步式第二步：在HB近似最小的一组解中找到HR最小的解
+     * 状态目标值：HR
+     */
+    public void SA_r() {
+        Iterator iterator = ackSeq_bestB.iterator();
+        if (iterator.hasNext()) {
+            AckSeq ack = (AckSeq) iterator.next();
+            calculate(ack.ackSeq);
+            HR_best = HR;
+            ackSeq_bestR.add(ack);
+        }
+        while (iterator.hasNext()) {
+            AckSeq ack = (AckSeq) iterator.next();
+            calculate(ack.ackSeq);
+            int res = HR.compareTo(HR_best);
+            if (res == -1) { //<
+                HR_best = HR;
+                ackSeq_bestR.clear();
+                ackSeq_bestR.add(ack);
+            } else if (res == 0) {
+                ackSeq_bestR.add(ack);
+            }
+        }
+    }
+
+    public void combine() {
+        System.out.println("-----HB-------");
+        SA_b();
+        SA_r();
+        for(AckSeq ack: ackSeq_bestB) {
+            System.out.println(ack);
+        }
+        System.out.println("------HR------");
+        for(AckSeq ack: ackSeq_bestR) {
+            System.out.println(ack);
+        }
+        System.out.println("min HB="+HB_best_current);
+        System.out.println("min HR="+HR_best);
+        System.out.println("HB "+ackSeq_bestB.size());
+        System.out.println("HR "+ackSeq_bestR.size());
     }
 
     private void shuffle(int[] ackSeq) {
