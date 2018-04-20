@@ -109,9 +109,5 @@ public class BigTest {
                 rowSize, blockSize,
                 queriesPerc,queries,X);
         diffReplicas_hb.combine();
-        List<String> sqls2 = diffReplicas_hb.sqls;
-        for(int i=0;i<sqls2.size(); i++) {
-            System.out.println(sqls2.get(i));
-        }
     }
 }

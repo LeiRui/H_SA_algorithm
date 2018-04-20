@@ -30,13 +30,16 @@ public class DiffReplicas_HB {
     // SA
     // X个异构副本组成一个状态解
     // 分流策略：简单的代价最小原则
-    public double[] Xload; // 某状态下X个副本按照分流策略规划到的负载数
+    public double[]  Xload; // 某状态下X个副本按照分流策略规划到的负载数
+    private double aveLoad; // sumPerc/x
+    private double BalanceThreshold; // 负载不均衡指标的阈值
     public BigDecimal HR; // 某个状态解的代价评价：查询按照分流策略分流之后累计的查询代价
     public BigDecimal HB; // 某个状态解的代价评价：查询按照分流策略分流之后累计的查询代价
 
     public BigDecimal HB_best;// SA每次内圈得到新状态之后维护的最优状态值
     public BigDecimal HR_best;// SA每次内圈得到新状态之后维护的最优状态值
     public Set<XAckSeq> ackSeq_bestB;//记忆性 SA维护的最优状态解集
+    public Set<XAckSeq> ackSeq_bestB_balanced;//记忆性 SA维护的最优状态解集
     public Set<XAckSeq> ackSeq_bestR;//记忆性 SA维护的最优状态解集
     public BigDecimal HB_best_bigloop; // SA外圈循环记录每次外圈退温时记忆中保持的最优状态值
 
@@ -58,6 +61,15 @@ public class DiffReplicas_HB {
         sqls = new ArrayList<>();
 
         this.X = X;
+
+        double sumPerc = 0;
+        int qkinds = queriesPerc.size();
+        for(int i=0; i<qkinds;i++) {
+            sumPerc += queriesPerc.get(i);
+        }
+        aveLoad = sumPerc/X;
+        BalanceThreshold = (1-aveLoad)*(1-aveLoad)/X*0.1; // 不均衡极端1,0,0,0,..时候的方差的10%
+
     }
 
     /**
@@ -243,8 +255,8 @@ public class DiffReplicas_HB {
     }
 
     private void shuffle(AckSeq[] xackSeq) {
-        List<Integer> ackList = new ArrayList<>();
         for(int j=0;j<X;j++) {
+            List<Integer> ackList = new ArrayList<>();
             xackSeq[j]=new AckSeq(new int[ckn]);
             for (int i = 1; i <= ckn; i++) { // 这里必须从1开始，因为表示ck排序输入参数从1开始
                 ackList.add(i);
@@ -386,7 +398,7 @@ public class DiffReplicas_HB {
      * 状态目标值：HR
      */
     public void SA_r() {
-        Iterator iterator = ackSeq_bestB.iterator();
+        Iterator iterator = ackSeq_bestB_balanced.iterator();
         if (iterator.hasNext()) {
             XAckSeq xack = (XAckSeq) iterator.next();
             calculate(xack.xackSeq);
@@ -408,16 +420,46 @@ public class DiffReplicas_HB {
     }
 
     public void combine() {
+        System.out.println("----------------------------------------------------");
+        // 第一步： SA找到HB代价近似最小的一组解
         SA_b();
+        System.out.println("根据目标值HB找到"+ackSeq_bestB.size()+"个近似最优解:");
+        // 第二步： 计算这组解的查询负载的不均衡指标，过滤掉其中特别不均衡的解
+        ackSeq_bestB_balanced = new HashSet<>();
+        for(XAckSeq xackSeq: ackSeq_bestB) {
+            System.out.print(xackSeq+": ");
+            calculate(xackSeq.xackSeq);
+            if(BalanceCheck(Xload)) { // 负载均衡检查通过
+                ackSeq_bestB_balanced.add(xackSeq);
+            }
+        }
+        System.out.println("----------------------------------------------------");
+        System.out.println("过滤掉负载不均衡指标超过阈值的解后，剩下"+ackSeq_bestB_balanced.size()+"个近似最优解:");
         SA_r();
         System.out.println("----------------------------------------------------");
-        System.out.println("根据目标值HB找到"+ackSeq_bestB.size()+"个近似最优解:");
+        System.out.println("再从中取出HR最小的解，共"+ackSeq_bestR.size()+"个近似最优解:");
         System.out.println("目标值HB近似最小为："+HB_best);
         System.out.println("目标值HR近似最小为："+HR_best);
-        for(XAckSeq ackSeq: ackSeq_bestR) {
-            System.out.print(ackSeq+": ");
-            calculate(ackSeq.xackSeq);
-            //System.out.println(": min HB="+HB);
+        for(XAckSeq xackSeq: ackSeq_bestR) {
+            System.out.print(xackSeq+": ");
+            calculate(xackSeq.xackSeq);
         }
+
+        for(int i=0;i<sqls.size(); i++) {
+            System.out.println(sqls.get(i));
+        }
+
+    }
+
+    private boolean BalanceCheck(double[] Xload) {
+        double variance = 0;
+        for(int i=0; i < X;i++){
+            variance+=(Xload[i]-aveLoad)*(Xload[i]-aveLoad);
+        }
+        variance /= X;
+        if(variance>BalanceThreshold)
+            return false; // 判定为不均衡
+        else
+            return true; // 判定为可以接受的均衡
     }
 }

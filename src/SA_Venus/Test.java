@@ -37,8 +37,8 @@ public class Test {
         // 查询参数
         List<Integer> queriesPerc = new ArrayList<>();
         queriesPerc.add(1);
-        queriesPerc.add(1);
-        queriesPerc.add(1);
+        //queriesPerc.add(1);
+        //queriesPerc.add(1);
 
         List<RangeQuery> queries = new ArrayList<>();
         int qck1n = 1;
@@ -61,22 +61,12 @@ public class Test {
 
         // 构造FindOneBest
         int X=3;
-        DiffReplicas_HR findOneBest = new DiffReplicas_HR(totalRowNumber,
+        DiffReplicas_HB findOneBest = new DiffReplicas_HB(totalRowNumber,
                 ckn,CKdist,
                 rowSize, blockSize,
                 queriesPerc,queries,X);
-//        findOneBest.calculate(new int[]{1,2,3});
-//        findOneBest.calculate(new int[]{1,3,2});
-//        findOneBest.calculate(new int[]{2,1,3});
-//        findOneBest.calculate(new int[]{3,1,2});
-//        findOneBest.calculate(new int[]{2,3,1});
-//        findOneBest.calculate(new int[]{3,2,1});
 
         findOneBest.combine();
-        List<String> sqls = findOneBest.sqls;
-        for(int i=0;i<sqls.size(); i++) {
-            System.out.println(sqls.get(i));
-        }
 
     }
 }
