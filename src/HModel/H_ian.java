@@ -6,6 +6,9 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 
+/*
+  改变数据存储结构对应查询代价建模
+ */
 public class H_ian {
     public BigDecimal totalRowNumber;
 
@@ -117,7 +120,8 @@ public class H_ian {
                 resP *= ACKdist.get(qackn).getBetween(qck_r1, qck_r2, Column_ian.rangeType.LoRo);
                 break;
         }
-        return totalRowNumber.multiply(new BigDecimal(resP)).setScale(2, RoundingMode.CEILING);
+        return totalRowNumber.multiply(new BigDecimal(resP));
+        // 这里不能保留2位小数什么的，因为这里如果totalRowNumber给小了，结果HR就是0.02这种，再一保留两位小数就都一样了
     }
 
 

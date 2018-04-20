@@ -1,7 +1,6 @@
-package SA;
+package SA_Venus;
 
 import HModel.Column_ian;
-import query.AckSeq;
 import query.RangeQuery;
 
 import java.math.BigDecimal;
@@ -37,37 +36,47 @@ public class Test {
 
         // 查询参数
         List<Integer> queriesPerc = new ArrayList<>();
-        queriesPerc.add(10);
-        //queriesPerc.add(0);
-        //queriesPerc.add(0);
+        queriesPerc.add(1);
+        queriesPerc.add(1);
+        queriesPerc.add(1);
 
         List<RangeQuery> queries = new ArrayList<>();
         int qck1n = 1;
-        double qck1r1abs = 0;
-        double qck1r2abs = 0.1;
+        double qck1r1abs = 0.3;
+        double qck1r2abs = 0.7;
         double[] qck1pabs = new double[ckn];
         for(int i=0;i<ckn;i++) {
             //double qpabs = Math.random(); // >=0 and <1
             qck1pabs[i] = 0.5;
         }
-        RangeQuery rangeQuery1 = new RangeQuery(qck1n,qck1r1abs,qck1r2abs,true,true,
+        RangeQuery rangeQuery1 = new RangeQuery(1,qck1r1abs,qck1r2abs,true,true,
+                qck1pabs);
+        RangeQuery rangeQuery2 = new RangeQuery(2,qck1r1abs,qck1r2abs,true,true,
+                qck1pabs);
+        RangeQuery rangeQuery3 = new RangeQuery(3,qck1r1abs,qck1r2abs,true,true,
                 qck1pabs);
         queries.add(rangeQuery1);
+        //queries.add(rangeQuery2);
+        //queries.add(rangeQuery3);
 
         // 构造FindOneBest
-        FindOneBest findOneBest = new FindOneBest(totalRowNumber,
+        int X=3;
+        DiffReplicas_HR findOneBest = new DiffReplicas_HR(totalRowNumber,
                 ckn,CKdist,
                 rowSize, blockSize,
-                queriesPerc,queries);
-        findOneBest.calculate(new int[]{1,2,3});
-        findOneBest.calculate(new int[]{1,3,2});
-        findOneBest.calculate(new int[]{2,1,3});
-        findOneBest.calculate(new int[]{3,1,2});
-        findOneBest.calculate(new int[]{2,3,1});
-        findOneBest.calculate(new int[]{3,2,1});
+                queriesPerc,queries,X);
+//        findOneBest.calculate(new int[]{1,2,3});
+//        findOneBest.calculate(new int[]{1,3,2});
+//        findOneBest.calculate(new int[]{2,1,3});
+//        findOneBest.calculate(new int[]{3,1,2});
+//        findOneBest.calculate(new int[]{2,3,1});
+//        findOneBest.calculate(new int[]{3,2,1});
 
         findOneBest.combine();
-
+        List<String> sqls = findOneBest.sqls;
+        for(int i=0;i<sqls.size(); i++) {
+            System.out.println(sqls.get(i));
+        }
 
     }
 }

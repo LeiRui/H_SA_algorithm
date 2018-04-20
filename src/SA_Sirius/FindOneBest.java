@@ -1,4 +1,4 @@
-package SA;
+package SA_Sirius;
 
 import HModel.Column_ian;
 import HModel.H_ian;
@@ -6,7 +6,6 @@ import query.AckSeq;
 import query.RangeQuery;
 
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.util.*;
 
@@ -25,6 +24,8 @@ public class FindOneBest {
     // 查询参数
     private List<Integer> queriesPerc;
     private List<RangeQuery> queries;
+    // 计算过程中H_ian实例化出的查询语句记录，过后用于cassandra-jdbc-use
+    public List<String> sqls;
 
     // H代价
     public BigDecimal HR;
@@ -50,11 +51,12 @@ public class FindOneBest {
         this.queries = queries;
         this.ackSeq_bestB = new HashSet<>();
         this.ackSeq_bestR = new HashSet<>();
+        sqls = new ArrayList<>();
     }
 
 
     /**
-     * 计算一种排序键下的当前代价
+     * 计算一种排序键排序/一种数据结构（当前副本异构的概念还不出来）下的当前代价
      * @param ackSeq 解的编码就是ackSeq，例如[1,3,2,5,4]代表排序键的一种排列[ck1,ck3,ck2,ck5,ck4]
      */
     public void calculate(int[] ackSeq) {
@@ -71,6 +73,9 @@ public class FindOneBest {
             //System.out.println("q"+(i+1)+"/"+qper+":" +h.getSql("panda","dm1",1));
             HR = HR.add(h.calculate().multiply(new BigDecimal(qper)));
             HB = HB.add(h.calculate(rowSize,blockSize).multiply(new BigDecimal(qper)));
+            if(sqls.size() == i) {
+                sqls.add(h.getSql("gym","dm1",1));
+            }
         }
         System.out.print("[");
         for(int i = 0; i < ckn; i++) {
@@ -95,6 +100,7 @@ public class FindOneBest {
      * 5. 抽样稳定准则
      * 6. 收敛准则
      *
+     * 一种数据存储结构为一个状态解
      * 改进SA两步式第一步：找到HB近似最小的一组解
      * 状态目标值为HB
      *
@@ -120,30 +126,27 @@ public class FindOneBest {
             }
         }
         double pr = 0.8;
-        BigDecimal t0 = maxDeltaB.negate().divide(new BigDecimal(Math.log(pr)),2, RoundingMode.HALF_UP);
+        if(maxDeltaB.compareTo(new BigDecimal("0")) == 0) {
+            maxDeltaB = new BigDecimal("0.001");
+        }
+        BigDecimal t0 = maxDeltaB.negate().divide(new BigDecimal(Math.log(pr)),10, RoundingMode.HALF_UP);
 
         //确定初始解
         int[] currentAckSeq = new int[ckn];
         shuffle(currentAckSeq);
         calculate(currentAckSeq);
-        HB_best_current = HB;
+        HB_best_current = new BigDecimal(HB.toString()); // 至于把currentAckSeq加进Set在后面完成的
+        HB_best_bigloop = new BigDecimal(HB.toString());
 
-        /*
-        HB_best_bigloop = HB;
-        HB_best_current = HB;
-        ackSeq_bestB.add(currentAckSeq);
-        */
-        int endCriteria = 20;//终止准则: BEST SO FAR连续20次退温保持不变
-        int endCount = 1;
+
+        int endCriteria = 20;// 终止准则: BEST SO FAR连续20次退温保持不变
+        int endCount = 0;
         int sampleCount = 20;// 抽样稳定准则：20步定步长
         BigDecimal deTemperature = new BigDecimal("0.7"); // 指数退温系数
         while(endCount <= endCriteria) {
             // 抽样稳定
             // 记忆性：注意中间最优结果记下来
             for(int sampleloop = 0; sampleloop < sampleCount; sampleloop++) {
-                //由当前状态产生新状态
-                int[] nextAckSeq = generateNewState(currentAckSeq);
-                //接受函数接受否
                  //增加记忆性
                 int comp = HB.compareTo(HB_best_current);
                 if(comp==-1) { //<
@@ -155,6 +158,9 @@ public class FindOneBest {
                     ackSeq_bestB.add(new AckSeq(currentAckSeq));
                 }
 
+                //由当前状态产生新状态
+                int[] nextAckSeq = generateNewState(currentAckSeq);
+                //接受函数接受否
                 BigDecimal currentHB = new BigDecimal(HB.toString()); // 当前状态的状态值保存在HB
                 calculate(nextAckSeq); // HB会被改变
                 BigDecimal delta = HB.subtract(currentHB); // 新旧状态的目标函数值差
@@ -166,7 +172,6 @@ public class FindOneBest {
                     //threshold = Math.exp(-delta/t0);
                     threshold = Math.exp(delta.negate().divide(t0,10, RoundingMode.HALF_UP).doubleValue()); //TODO
                 }
-
                 if(Math.random() <= threshold) { // 概率接受，替换当前状态
                     currentAckSeq = nextAckSeq;
                     // HB就是现在更新后的HB
@@ -177,8 +182,8 @@ public class FindOneBest {
                 }
             }
 
-            if(HB_best_current != HB_best_bigloop) {
-                endCount = 1; // 重新计数
+            if(!HB_best_current.equals(HB_best_bigloop)) {
+                endCount = 0; // 重新计数
                 HB_best_bigloop = HB_best_current; // 把当前最小值传递给外圈循环
             }
             else { // 这次退温后best_so_far和上次比没有改变
