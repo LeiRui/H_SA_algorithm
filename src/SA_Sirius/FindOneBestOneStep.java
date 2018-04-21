@@ -125,6 +125,7 @@ public class FindOneBestOneStep {
             maxDeltaB = new BigDecimal("0.001");
         }
         BigDecimal t0 = maxDeltaB.negate().divide(new BigDecimal(Math.log(pr)),10, RoundingMode.HALF_UP);
+        System.out.println("初温："+t0);
 
         //确定初始解
         int[] currentAckSeq = new int[ckn];
@@ -159,21 +160,25 @@ public class FindOneBestOneStep {
                 calculate(nextAckSeq); // HB会被改变
                 BigDecimal delta = HR.subtract(currentHR); // 新旧状态的目标函数值差
                 double threshold;
-                if(delta.compareTo(new BigDecimal("0"))==-1) { // <
+                if(delta.compareTo(new BigDecimal("0"))!=1) { // <
                     threshold = 1;
+                    System.out.println("新状态不比现在状态差");
                 }
                 else {
                     //threshold = Math.exp(-delta/t0);
                     threshold = Math.exp(delta.negate().divide(t0,10, RoundingMode.HALF_UP).doubleValue()); //TODO
+                    System.out.println("新状态比现在状态差");
                 }
 
                 if(Math.random() <= threshold) { // 概率接受，替换当前状态
                     currentAckSeq = nextAckSeq;
                     // HR就是现在更新后的HR
+                    System.out.println("接受新状态");
                 }
                 else {// 否则保持当前状态不变
                     HR = currentHR;//恢复原来解的状态值
                     // currentAckSeq就是原本的
+                    System.out.println("维持当前状态不变");
                 }
             }
 

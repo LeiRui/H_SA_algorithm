@@ -43,10 +43,12 @@ public class BigTest {
         queriesPerc.add(3);
         queriesPerc.add(2);
         queriesPerc.add(2);
+        queriesPerc.add(1);
+        queriesPerc.add(3);
 
-        int[] qcknGroup = new int[]{1,2,4,5,6,7,9,10};
-        double[] qckr1absGroup = new double[]{0, 0,  0,   0,  0,  0,  0,  0};
-        double[] qckr2absGroup = new double[]{1,0.8,0.3,0.9,0.2,0.5, 0.7, 0.5};
+        int[] qcknGroup = new int[]{1,2,3,4,5,6,7,8,9,10};
+        double[] qckr1absGroup = new double[]{0, 0,  0,   0,  0,  0,  0,  0,   0,  0};
+        double[] qckr2absGroup = new double[]{1,0.8,0.3,0.9,0.2,0.5, 0.7, 0.5, 0.1,  0.7};
 
         List<RangeQuery> queries = new ArrayList<>();
         for(int i=0;i<qcknGroup.length;i++) {
@@ -87,5 +89,6 @@ public class BigTest {
 //        for(int i=0;i<sqls.size(); i++) {
 //            System.out.println(sqls.get(i));
 //        }
+
     }
 }

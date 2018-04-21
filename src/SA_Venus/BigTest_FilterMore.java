@@ -1,15 +1,17 @@
 package SA_Venus;
 
 import HModel.Column_ian;
-import SA_Sirius.FindOneBest;
-import SA_Sirius.FindOneBestOneStep;
 import query.RangeQuery;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
-public class BigTest {
+/*
+  当查询本身比较均衡的时候，三步式的第二步其实不会过滤很多
+  所以这个测试例想要看看当查询特别不均衡的时候，三步式会不会得到至少不差于优化存储结构的结果
+ */
+public class BigTest_FilterMore {
     public static void main(String[] args) {
         // 数据分布参数
         //BigDecimal totalRowNumber = new BigDecimal("100000000000000000000");
@@ -37,20 +39,20 @@ public class BigTest {
 
         // 查询参数
         List<Integer> queriesPerc = new ArrayList<>();
+        queriesPerc.add(20);
         queriesPerc.add(1);
-        queriesPerc.add(2);
-        queriesPerc.add(3);
-        queriesPerc.add(4);
-        queriesPerc.add(4);
-        queriesPerc.add(3);
-        queriesPerc.add(2);
-        queriesPerc.add(2);
         queriesPerc.add(1);
-        queriesPerc.add(3);
+        queriesPerc.add(1);
+        queriesPerc.add(1);
+        queriesPerc.add(1);
+        queriesPerc.add(1);
+        queriesPerc.add(1);
+        queriesPerc.add(1);
+        queriesPerc.add(1);
 
         int[] qcknGroup = new int[]{1,2,3,4,5,6,7,8,9,10};
         double[] qckr1absGroup = new double[]{0, 0,  0,   0,  0,  0,  0,  0,   0,  0};
-        double[] qckr2absGroup = new double[]{1,0.8,0.3,0.9,0.2,0.5, 0.7, 0.5, 0.1,  0.7};
+        double[] qckr2absGroup = new double[]{1,1,1,0.9,0.2,0.5, 0.7, 0.5, 0.1,  0.7};
 
         List<RangeQuery> queries = new ArrayList<>();
         for(int i=0;i<qcknGroup.length;i++) {

@@ -1,7 +1,7 @@
-package SA_Venus;
+package SA_Prime;
 
 import HModel.Column_ian;
-import SA_Sirius.FindOneBestOneStep;
+import SA_Venus.DiffReplicas_HB;
 import query.AckSeq;
 import query.RangeQuery;
 
@@ -40,7 +40,7 @@ public class Test {
         List<Integer> queriesPerc = new ArrayList<>();
         queriesPerc.add(1);
         queriesPerc.add(1);
-        queriesPerc.add(100);
+        queriesPerc.add(10);
 
         List<RangeQuery> queries = new ArrayList<>();
         int qck1n = 1;
@@ -63,35 +63,14 @@ public class Test {
 
         // 构造FindOneBest
         int X=3;
-        DiffReplicas_HB findOneBest = new DiffReplicas_HB(totalRowNumber,
+        Unify unify = new Unify(totalRowNumber,
                 ckn,CKdist,
                 rowSize, blockSize,
                 queriesPerc,queries,X);
-
-        findOneBest.combine();
-//        findOneBest.calculate(new AckSeq[]{new AckSeq(new int[]{1,2,3}),
-//                new AckSeq(new int[]{1,2,3}),
+        unify.isDiffReplicated = true;
+        unify.combine();
+//        unify.calculate(new AckSeq[]{new AckSeq(new int[]{3,2,1}),
+//                new AckSeq(new int[]{2,1,3}),
 //                new AckSeq(new int[]{2,1,3})});
-//
-//        findOneBest.calculate(new AckSeq[]{new AckSeq(new int[]{1,2,3}),
-//                new AckSeq(new int[]{1,2,3}),
-//                new AckSeq(new int[]{1,2,3})});
-//
-//        findOneBest.calculate(new AckSeq[]{new AckSeq(new int[]{1,2,3}),
-//                new AckSeq(new int[]{1,2,3}),
-//                new AckSeq(new int[]{1,2,3})});
-
-
-
-//        FindOneBestOneStep findOneBest2 = new FindOneBestOneStep(totalRowNumber,
-//                ckn,CKdist,
-//                rowSize, blockSize,
-//                queriesPerc,queries);
-//
-//        findOneBest2.combine();
-//        List<String> sqls = findOneBest2.sqls;
-//        for(int i=0;i<sqls.size(); i++) {
-//            System.out.println(sqls.get(i));
-//        }
     }
 }
