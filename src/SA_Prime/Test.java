@@ -61,7 +61,7 @@ public class Test {
         queries.add(rangeQuery2);
         queries.add(rangeQuery3);
 
-        // 构造FindOneBest
+        // 构造
         int X=3;
         Unify unify = new Unify(totalRowNumber,
                 ckn,CKdist,

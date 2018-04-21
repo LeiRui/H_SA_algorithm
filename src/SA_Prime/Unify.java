@@ -316,15 +316,15 @@ public class Unify {
         System.out.println("----------------------------------------------------");
         // 第一步： SA找到HB代价近似最小的一组解
         SA_b();
-        System.out.println("step1:找到"+ackSeq_best_step1.size()+"个近似最优解:");
+        System.out.println("step1完成: SA找到HBCost近似最小的"+ackSeq_best_step1.size()+"个近似最优解:");
         SA_r();
-        System.out.println("step2:再从中取出HR最小的解，共"+ackSeq_best_step2.size()+"个");
-        System.out.println("目标值HB近似最小为："+HBCost_best);
-        System.out.println("目标值HR近似最小为："+HRCost_best);
+        System.out.println("step2完成:从上一步的解集中找到HR最小的"+ackSeq_best_step2.size()+"个解:");
         for(XAckSeq xackSeq: ackSeq_best_step2) {
-            System.out.print(xackSeq+": ");
+            //System.out.print(xackSeq+": ");
             calculate(xackSeq.xackSeq);
         }
+        System.out.println("目标值HB近似最小为："+HBCost_best);
+        System.out.println("目标值HR近似最小为："+HRCost_best);
 
         for(int i=0;i<sqls.size(); i++) {
             System.out.println(sqls.get(i));
