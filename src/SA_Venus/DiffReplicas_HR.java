@@ -2,6 +2,7 @@ package SA_Venus;
 
 import HModel.Column_ian;
 import HModel.H_ian;
+import common.Constant;
 import query.AckSeq;
 import query.RangeQuery;
 import query.XAckSeq;
@@ -48,8 +49,8 @@ public class DiffReplicas_HR {
         this.blockSize = blockSize;
         this.queriesPerc = queriesPerc;
         this.queries = queries;
-        this.ackSeq_bestR = new HashSet<>();
-        sqls = new ArrayList<>();
+        this.ackSeq_bestR = new HashSet();
+        sqls = new ArrayList();
 
         this.X = X;
     }
@@ -76,7 +77,7 @@ public class DiffReplicas_HR {
 
             //遍历给定的状态中X个异构副本，根据H代价和代价最小的分流策略，确定当前查询分流的副本，
             // 从而累加这个查询的查询代价（记得乘以比重），以及累加这个副本分流到的查询负载
-            List<Integer> chooseX = new ArrayList<>(); // 当两个副本代价一样的时候，随机选一个，这两个副本平分这个负载
+            List<Integer> chooseX = new ArrayList(); // 当两个副本代价一样的时候，随机选一个，这两个副本平分这个负载
             chooseX.add(0);
             H_ian h = new H_ian(totalRowNumber,ckn,CKdist,
                     q.qckn,q.qck_r1_abs,q.qck_r2_abs,q.r1_closed,q.r2_closed, q.qck_p_abs,
@@ -84,7 +85,7 @@ public class DiffReplicas_HR {
             BigDecimal chooseHR = h.calculate(); // TODO 暂时就用一步式 比较代价用HR，计算最终结果代价也把HB计算出来
             BigDecimal tmpHR; // TODO 暂时就用一步式 比较代价用HR，计算最终结果代价也把HB计算出来
             if(sqls.size() == i) {
-                sqls.add(h.getSql("venus","dm1",1));
+                sqls.add(h.getSql(Constant.ks,Constant.cf));
             }
             for(int j=1;j<X;j++) {
                 h = new H_ian(totalRowNumber,ckn,CKdist,
@@ -141,7 +142,7 @@ public class DiffReplicas_HR {
         //确定初温：
         // 随机产生一组状态，确定两两状态间的最大目标值差，然后依据差值，利用一定的函数确定初温
         int setNum = 20;
-        List<AckSeq[]> xackSeqList = new ArrayList<>();
+        List<AckSeq[]> xackSeqList = new ArrayList();
         for(int i=0; i< setNum; i++) {
             AckSeq[] xackSeq = new AckSeq[X];
             shuffle(xackSeq);
@@ -237,7 +238,7 @@ public class DiffReplicas_HR {
     }
 
     private void shuffle(AckSeq[] xackSeq) {
-        List<Integer> ackList = new ArrayList<>();
+        List<Integer> ackList = new ArrayList();
         for(int j=0;j<X;j++) {
             xackSeq[j]=new AckSeq(new int[ckn]);
             for (int i = 1; i <= ckn; i++) { // 这里必须从1开始，因为表示ck排序输入参数从1开始

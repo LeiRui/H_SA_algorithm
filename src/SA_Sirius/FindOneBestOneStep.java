@@ -2,6 +2,7 @@ package SA_Sirius;
 
 import HModel.Column_ian;
 import HModel.H_ian;
+import common.Constant;
 import query.AckSeq;
 import query.RangeQuery;
 
@@ -46,8 +47,8 @@ public class FindOneBestOneStep {
         this.blockSize = blockSize;
         this.queriesPerc = queriesPerc;
         this.queries = queries;
-        this.ackSeq_bestR = new HashSet<>();
-        sqls = new ArrayList<>();
+        this.ackSeq_bestR = new HashSet();
+        sqls = new ArrayList();
     }
 
 
@@ -69,7 +70,7 @@ public class FindOneBestOneStep {
             HR = HR.add(h.calculate().multiply(new BigDecimal(qper)));
             HB = HB.add(h.calculate(rowSize,blockSize).multiply(new BigDecimal(qper)));
             if(sqls.size() == i) {
-                sqls.add(h.getSql("sirius","dm1",1));
+                sqls.add(h.getSql(Constant.ks,Constant.cf));
             }
         }
         System.out.print("[");
@@ -211,7 +212,7 @@ public class FindOneBestOneStep {
     }
 
     private void shuffle(int[] ackSeq) {
-        List<Integer> ackList = new ArrayList<>();
+        List<Integer> ackList = new ArrayList();
         for(int i=1; i<=ckn; i++) {
             ackList.add(i);
         }

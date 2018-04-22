@@ -39,7 +39,7 @@ public class LocalMinTest {
         int blockSize = 65536;
 
         // 查询参数
-        List<Integer> queriesPerc = new ArrayList<>();
+        List<Integer> queriesPerc = new ArrayList();
         queriesPerc.add(1);
         queriesPerc.add(1);
         queriesPerc.add(1);
@@ -74,7 +74,7 @@ public class LocalMinTest {
                 1,0.8,0.3,0.4,0.5,
                 1,0.8,0.3,0.4,0.5};
 
-        List<RangeQuery> queries = new ArrayList<>();
+        List<RangeQuery> queries = new ArrayList();
         for(int i=0;i<qcknGroup.length;i++) {
             int qckn = qcknGroup[i];
             double qckr1abs = qckr1absGroup[i];

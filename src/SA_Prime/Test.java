@@ -2,6 +2,8 @@ package SA_Prime;
 
 import HModel.Column_ian;
 import SA_Venus.DiffReplicas_HB;
+import cassandra.EasyNoDiffTest;
+import cassandra.General;
 import query.AckSeq;
 import query.RangeQuery;
 
@@ -37,12 +39,12 @@ public class Test {
         int blockSize = 65536;
 
         // 查询参数
-        List<Integer> queriesPerc = new ArrayList<>();
+        List<Integer> queriesPerc = new ArrayList();
         queriesPerc.add(1);
         queriesPerc.add(1);
         queriesPerc.add(10);
 
-        List<RangeQuery> queries = new ArrayList<>();
+        List<RangeQuery> queries = new ArrayList();
         int qck1n = 1;
         double qck1r1abs = 0.3;
         double qck1r2abs = 0.7;
@@ -62,15 +64,27 @@ public class Test {
         queries.add(rangeQuery3);
 
         // 构造
-        int X=3;
+//        int X=3;
+//        Unify unify = new Unify(totalRowNumber,
+//                ckn,CKdist,
+//                rowSize, blockSize,
+//                queriesPerc,queries,X);
+//        unify.isDiffReplicated = false;
+//        unify.combine();
+////        unify.calculate(new AckSeq[]{new AckSeq(new int[]{3,2,1}),
+////                new AckSeq(new int[]{2,1,3}),
+////                new AckSeq(new int[]{2,1,3})});
+//
+//        // Cassandra实证
+//        EasyNoDiffTest easyNoDiffTest = new EasyNoDiffTest(unify);
+//        easyNoDiffTest.getFactCost();
+
+        int X = 3;
         Unify unify = new Unify(totalRowNumber,
-                ckn,CKdist,
+                ckn, CKdist,
                 rowSize, blockSize,
-                queriesPerc,queries,X);
+                queriesPerc, queries, X);
         unify.isDiffReplicated = true;
         unify.combine();
-//        unify.calculate(new AckSeq[]{new AckSeq(new int[]{3,2,1}),
-//                new AckSeq(new int[]{2,1,3}),
-//                new AckSeq(new int[]{2,1,3})});
     }
 }

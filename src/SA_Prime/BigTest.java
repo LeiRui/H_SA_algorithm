@@ -35,7 +35,7 @@ public class BigTest {
         int blockSize = 65536;
 
         // 查询参数
-        List<Integer> queriesPerc = new ArrayList<>();
+        List<Integer> queriesPerc = new ArrayList();
         queriesPerc.add(1);
         queriesPerc.add(2);
         queriesPerc.add(3);
@@ -51,7 +51,7 @@ public class BigTest {
         double[] qckr1absGroup = new double[]{0, 0,  0,   0,  0,  0,  0,  0,   0,  0};
         double[] qckr2absGroup = new double[]{1,0.8,0.3,0.9,0.2,0.5, 0.7, 0.5, 0.1,  0.7};
 
-        List<RangeQuery> queries = new ArrayList<>();
+        List<RangeQuery> queries = new ArrayList();
         for(int i=0;i<qcknGroup.length;i++) {
             int qckn = qcknGroup[i];
             double qckr1abs = qckr1absGroup[i];
@@ -74,7 +74,11 @@ public class BigTest {
                 ckn,CKdist,
                 rowSize, blockSize,
                 queriesPerc,queries,X);
-        unify.isDiffReplicated = true;
+        unify.isDiffReplicated = false;
         unify.combine();
+
+
+
+        // cassandra实证
     }
 }

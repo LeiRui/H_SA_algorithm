@@ -2,6 +2,7 @@ package SA_Sirius;
 
 import HModel.Column_ian;
 import HModel.H_ian;
+import common.Constant;
 import query.AckSeq;
 import query.RangeQuery;
 
@@ -49,9 +50,9 @@ public class FindOneBest {
         this.blockSize = blockSize;
         this.queriesPerc = queriesPerc;
         this.queries = queries;
-        this.ackSeq_bestB = new HashSet<>();
-        this.ackSeq_bestR = new HashSet<>();
-        sqls = new ArrayList<>();
+        this.ackSeq_bestB = new HashSet();
+        this.ackSeq_bestR = new HashSet();
+        sqls = new ArrayList();
     }
 
 
@@ -74,7 +75,7 @@ public class FindOneBest {
             HR = HR.add(h.calculate().multiply(new BigDecimal(qper)));
             HB = HB.add(h.calculate(rowSize,blockSize).multiply(new BigDecimal(qper)));
             if(sqls.size() == i) {
-                sqls.add(h.getSql("gym","dm1",1));
+                sqls.add(h.getSql(Constant.ks,Constant.cf));
             }
         }
         System.out.print("[");
@@ -88,7 +89,6 @@ public class FindOneBest {
         //System.out.println("------");
 
     }
-
     /**
      * 模拟退火算法
      * 搜索排序键排列，找到使得在给定数据和查询集的条件下，H模型代价最小（已经验证H模型代价和真实查询代价的一致性）
@@ -246,7 +246,7 @@ public class FindOneBest {
     }
 
     private void shuffle(int[] ackSeq) {
-        List<Integer> ackList = new ArrayList<>();
+        List<Integer> ackList = new ArrayList();
         for(int i=1; i<=ckn; i++) {
             ackList.add(i);
         }

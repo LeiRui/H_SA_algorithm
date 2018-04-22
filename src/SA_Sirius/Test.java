@@ -35,12 +35,12 @@ public class Test {
         int blockSize = 65536;
 
         // 查询参数
-        List<Integer> queriesPerc = new ArrayList<>();
+        List<Integer> queriesPerc = new ArrayList();
         queriesPerc.add(1);
         queriesPerc.add(1);
         queriesPerc.add(1);
 
-        List<RangeQuery> queries = new ArrayList<>();
+        List<RangeQuery> queries = new ArrayList();
         int qck1n = 1;
         double qck1r1abs = 0.3;
         double qck1r2abs = 0.7;

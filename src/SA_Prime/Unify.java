@@ -2,6 +2,7 @@ package SA_Prime;
 
 import HModel.Column_ian;
 import HModel.H_ian;
+import common.Constant;
 import query.AckSeq;
 import query.RangeQuery;
 import query.XAckSeq;
@@ -31,7 +32,7 @@ public class Unify {
     private int rowSize;// unit: byte
     private int blockSize;// unit: byte default: 65536
     // 查询参数
-    private List<Integer> queriesPerc;
+    public List<Integer> queriesPerc;
     private List<RangeQuery> queries;
     // 计算过程中H_ian实例化出的查询语句记录，过后用于cassandra-jdbc-use
     public List<String> sqls;
@@ -40,7 +41,7 @@ public class Unify {
     // X个异构副本组成一个状态解
     // 分流策略：简单的代价最小原则
     public BigDecimal HBCost; // 某个状态解的代价评价：查询按照分流策略分流之后累计的查询代价
-    public List<List<Integer>> qchooseX; // queries中每一个查询的路由结果记录
+    public List<List<Integer>> qchooseX; // queries中每一个查询的路由结果记录，这里是从0开始
     public BigDecimal HBCost_best;// SA每次内圈得到新状态之后维护的最优状态值
     public BigDecimal HBCost_best_bigloop; // SA外圈循环记录每次外圈退温时记忆中保持的最优状态值
     public Set<XAckSeq> ackSeq_best_step1;//记忆性 SA维护的最优状态解集
@@ -48,6 +49,7 @@ public class Unify {
     public BigDecimal HRCost;
     public BigDecimal HRCost_best;
     public Set<XAckSeq> ackSeq_best_step2;
+//    public XAckSeq Output; // 最后的输出
 
     public int X; // 给定的异构副本数量
 
@@ -62,11 +64,11 @@ public class Unify {
         this.blockSize = blockSize;
         this.queriesPerc = queriesPerc;
         this.queries = queries;
-        this.ackSeq_best_step1 = new HashSet<>();
-        this.ackSeq_best_step2 = new HashSet<>();
-        sqls = new ArrayList<>();
+        this.ackSeq_best_step1 = new HashSet();
+        this.ackSeq_best_step2 = new HashSet();
+        sqls = new ArrayList();
         this.X = X;
-        this.qchooseX = new ArrayList<>();
+        this.qchooseX = new ArrayList();
 
     }
 
@@ -93,7 +95,7 @@ public class Unify {
             RangeQuery q = queries.get(i);
             int qper = queriesPerc.get(i);
 
-            List<Integer> chooseX = new ArrayList<>(); // 代价一样的副本平分负载
+            List<Integer> chooseX = new ArrayList(); // 代价一样的副本平分负载
             chooseX.add(0);
             H_ian h = new H_ian(totalRowNumber,ckn,CKdist,
                     q.qckn,q.qck_r1_abs,q.qck_r2_abs,q.r1_closed,q.r2_closed, q.qck_p_abs,
@@ -101,7 +103,7 @@ public class Unify {
             BigDecimal chooseHB = h.calculate(rowSize,blockSize);
             BigDecimal tmpHB;
             if(sqls.size() == i) {
-                sqls.add(h.getSql("venus","dm1",1));
+                sqls.add(h.getSql(Constant.ks,Constant.cf));
             }
             for(int j=1;j<X;j++) { // 遍历X个副本，按照最小HB原则对q分流
                 h = new H_ian(totalRowNumber,ckn,CKdist,
@@ -190,7 +192,7 @@ public class Unify {
         //确定初温：
         // 随机产生一组状态，确定两两状态间的最大目标值差，然后依据差值，利用一定的函数确定初温
         int setNum = 20;
-        List<AckSeq[]> xackSeqList = new ArrayList<>();
+        List<AckSeq[]> xackSeqList = new ArrayList();
         for(int i=0; i< setNum; i++) {
             AckSeq[] xackSeq = new AckSeq[X];
             shuffle(xackSeq);
@@ -322,12 +324,14 @@ public class Unify {
         for(XAckSeq xackSeq: ackSeq_best_step2) {
             //System.out.print(xackSeq+": ");
             calculate(xackSeq.xackSeq);
-        }
+//            Output = xackSeq;
+        } // 此时结束之后Output以及unify中的所有属性都是ackSeq_best_step2中最后一个元素的计算结果
         System.out.println("目标值HB近似最小为："+HBCost_best);
         System.out.println("目标值HR近似最小为："+HRCost_best);
-
+//        System.out.println("算法给出一个最后的结果为: ");
+//        calculate(Output.xackSeq);
         for(int i=0;i<sqls.size(); i++) {
-            System.out.println(sqls.get(i));
+            System.out.println(sqls.get(i)+":"+queriesPerc.get(i));
         }
 
     }
@@ -335,7 +339,7 @@ public class Unify {
     private void shuffle(AckSeq[] xackSeq) {
         if(isDiffReplicated) {// 副本异构
             for (int j = 0; j < X; j++) {
-                List<Integer> ackList = new ArrayList<>();
+                List<Integer> ackList = new ArrayList();
                 xackSeq[j] = new AckSeq(new int[ckn]);
                 for (int i = 1; i <= ckn; i++) { // 这里必须从1开始，因为表示ck排序输入参数从1开始
                     ackList.add(i);
@@ -347,7 +351,7 @@ public class Unify {
             }
         }
         else { // 无异构
-            List<Integer> ackList = new ArrayList<>();
+            List<Integer> ackList = new ArrayList();
             for (int i = 1; i <= ckn; i++) { // 这里必须从1开始，因为表示ck排序输入参数从1开始
                 ackList.add(i);
             }

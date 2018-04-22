@@ -31,33 +31,32 @@ public class H_ian {
      *
      * @param ks
      * @param cf
-     * @param pkey
      * @return
      */
     // TODO double int sql
-    public String getSql(String ks, String cf, int pkey) {
-        String q_format = "select * from "+ks+"."+cf+" where pkey="+pkey;
+    public String getSql(String ks, String cf) {
+        String q_format = "select * from "+ks+"."+cf+" where pkey=%d";
         for(int i=0;i<ckn;i++) {
             if(i==qackn) {
                 switch (type) {
                     case LcRc:
-                        q_format += " and ck" + ackSeq[i] + ">=" + qck_r1 + " and ck" + ackSeq[i] + "<=" + qck_r2;
+                        q_format += " and ck" + ackSeq[i] + ">=" + (int)qck_r1 + " and ck" + ackSeq[i] + "<=" + (int)qck_r2;
                         break;
                     case LcRo:
-                        q_format += " and ck" + ackSeq[i] + ">=" + qck_r1 + " and ck" + ackSeq[i] + "<" + qck_r2;
+                        q_format += " and ck" + ackSeq[i] + ">=" + (int)qck_r1 + " and ck" + ackSeq[i] + "<" + (int)qck_r2;
                         break;
                     case LoRc:
-                        q_format += " and ck" + ackSeq[i] + ">" + qck_r1 + " and ck" + ackSeq[i] + "<=" + qck_r2;
+                        q_format += " and ck" + ackSeq[i] + ">" + (int)qck_r1 + " and ck" + ackSeq[i] + "<=" + (int)qck_r2;
                         break;
                     case LoRo:
-                        q_format += " and ck" + ackSeq[i] + ">" + qck_r1 + " and ck" + ackSeq[i] + "<" + qck_r2;
+                        q_format += " and ck" + ackSeq[i] + ">" + (int)qck_r1 + " and ck" + ackSeq[i] + "<" + (int)qck_r2;
                         break;
                     default:
                         break;
                 }
             }
             else {
-                q_format+=" and ck"+ackSeq[i]+"="+qack_p[i];
+                q_format+=" and ck"+ackSeq[i]+"="+(int)qack_p[i];
             }
         }
         q_format+=" allow filtering;";

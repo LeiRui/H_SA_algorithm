@@ -36,12 +36,12 @@ public class CalculateTest {
         int blockSize = 65536;
 
         // 查询参数
-        List<Integer> queriesPerc = new ArrayList<>();
+        List<Integer> queriesPerc = new ArrayList();
         queriesPerc.add(1);
         queriesPerc.add(1);
         queriesPerc.add(1);
 
-        List<RangeQuery> queries = new ArrayList<>();
+        List<RangeQuery> queries = new ArrayList();
         double qck1r1abs = 0.3;
         double qck1r2abs = 0.7;
         double[] qck1pabs = new double[ckn];
@@ -83,12 +83,12 @@ public class CalculateTest {
 
 
         // 查询参数
-        List<Integer> queriesPerc3 = new ArrayList<>();
+        List<Integer> queriesPerc3 = new ArrayList();
         queriesPerc3.add(1);
 
         rangeQuery1 = new RangeQuery(1,qck1r1abs,qck1r2abs,true,true,
                 qck1pabs);
-        List<RangeQuery> queries3 = new ArrayList<>();
+        List<RangeQuery> queries3 = new ArrayList();
         queries3.add(rangeQuery1);
 
         DiffReplicas_HR findOneBest3 = new DiffReplicas_HR(totalRowNumber,
