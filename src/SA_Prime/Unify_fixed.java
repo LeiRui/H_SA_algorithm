@@ -3,6 +3,7 @@ package SA_Prime;
 import HModel.Column_ian;
 import HModel.H_ian;
 import common.Constant;
+import jnr.ffi.annotations.In;
 import query.AckSeq;
 import query.RangeQuery;
 import query.XAckSeq;
@@ -12,16 +13,11 @@ import java.math.RoundingMode;
 import java.util.*;
 
 /*
- 我想我可以统一无异构时数据存储结构优化和多副本异构优化
-
-1）	副本异构时的查询分流原则：最小HB
-比HR具有更好的负载均衡性，比单纯站在副本负载均衡角度分流对查询更友好，且考虑到其实副本所在结点的工作情况不是完全可控的，所以单纯站在副本负载均衡角度可能牺牲了单查询的latency也未必能达到效果，还不如在一个给定副本异构状态的情况下，先去对查询友好，至于最终的优化目标通过查找更好的副本异构状态来满足
-2）	副本异构状态的目标函数值：按照分流原则之后的所有副本各自计算HB，然后取其中最大的HB作为这个状态的目标函数值
-3）	算法流程：两步式
-第一步：SA，输入给定数据参数、查询参数，输出找到的状态目标函数值max(sum HB)近似最小的一组解（访问方式等到最后最优解出来之后再给出来用于实际指导查询路由也不迟）
-第二步：取出这组解中max(sum HR)最小的一组解。（还是sum(sum HR)最小呢？）
+好像比较max(sum HR)也不太合适 sum还是有问题。在max(sum HB)最小的一组解中，
+比较max(sum HB)的取max的那个瓶颈副本的累加HR？而不是用所有副本的max(sum HR)?
+因为后者其实又脱离HB相同的前提了，可能取到max sumHR的副本的HB不是最大的，造成错位比较了。
  */
-public class Unify {
+public class Unify_fixed{
     public  boolean isDiffReplicated = false; // 统一无异构优化数据存储结构和异构
 
     // 数据分布参数
@@ -53,10 +49,10 @@ public class Unify {
 
     public int X; // 给定的异构副本数量
 
-    public Unify(BigDecimal totalRowNumber, int ckn, List<Column_ian>CKdist,
-                           int rowSize, int blockSize,
-                           List<Integer> queriesPerc, List<RangeQuery> queries,
-                           int X) {
+    public Unify_fixed(BigDecimal totalRowNumber, int ckn, List<Column_ian>CKdist,
+                 int rowSize, int blockSize,
+                 List<Integer> queriesPerc, List<RangeQuery> queries,
+                 int X) {
         this.totalRowNumber = totalRowNumber;
         this.ckn = ckn;
         this.CKdist = CKdist;
@@ -137,19 +133,27 @@ public class Unify {
         }
 
         // max(sum HB)的max
+        List<Integer> maxR=new ArrayList<Integer>();
         HBCost = XBload[0];
         for(int i=1;i<X;i++) {
-            if(XBload[i].compareTo(HBCost) == 1) {
+            int res = XBload[i].compareTo(HBCost);
+            if(res == 1) {
+                maxR.clear();
+                maxR.add(i);
                 HBCost = XBload[i];
             }
-        }
-        // max(sum HR)的max
-        HRCost = XRload[0];
-        for (int i = 1; i < X; i++) {
-            if (XRload[i].compareTo(HRCost) == 1) {
-                HRCost = XRload[i];
+            else if(res == 0) {
+                maxR.add(i);
             }
         }
+        //再比较max(sum HB)相同的几个副本的HR，取最大者作为该状态的HRCost
+        HRCost = new BigDecimal("0");// HRCost is dependent on max HBCost first
+        for(int i=0;i<maxR.size();i++) {
+            if(XRload[maxR.get(i)].compareTo(HRCost) == 1) {
+                HRCost = XRload[maxR.get(i)];
+            }
+        }
+
 
         //打印结果
         System.out.print(String.format("HB:%.2f HR:%.2f| ",HBCost,HRCost));

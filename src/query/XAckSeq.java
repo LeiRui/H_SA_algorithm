@@ -41,7 +41,7 @@ public class XAckSeq {
         for(int i=0;i<X;i++) {
             str+=xackSeq[i].toString();
             if(i!= X-1)
-                str+=",";
+                str+=";";
         }
         str+="}";
         return str;

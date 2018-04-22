@@ -32,7 +32,7 @@ public class AckSeq {
         for(int i=0;i<length;i++) {
             str+=ackSeq[i];
             if(i!= length-1)
-                str+=",";
+                str+="-";
         }
         str+="]";
         return str;

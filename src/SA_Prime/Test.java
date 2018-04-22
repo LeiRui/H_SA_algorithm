@@ -40,9 +40,9 @@ public class Test {
 
         // 查询参数
         List<Integer> queriesPerc = new ArrayList();
+        queriesPerc.add(5);
+        queriesPerc.add(3);
         queriesPerc.add(1);
-        queriesPerc.add(1);
-        queriesPerc.add(10);
 
         List<RangeQuery> queries = new ArrayList();
         int qck1n = 1;
@@ -79,12 +79,22 @@ public class Test {
 //        EasyNoDiffTest easyNoDiffTest = new EasyNoDiffTest(unify);
 //        easyNoDiffTest.getFactCost();
 
+
         int X = 3;
-        Unify unify = new Unify(totalRowNumber,
+        Unify_fixed unify = new Unify_fixed(totalRowNumber,
                 ckn, CKdist,
                 rowSize, blockSize,
                 queriesPerc, queries, X);
         unify.isDiffReplicated = true;
         unify.combine();
+
+
+//        int X = 3;
+//        Unify_HR_BadProof unify = new Unify_HR_BadProof(totalRowNumber,
+//                ckn, CKdist,
+//                rowSize, blockSize,
+//                queriesPerc, queries, X);
+//        unify.isDiffReplicated = true;
+//        unify.combine();
     }
 }

@@ -16,7 +16,7 @@ public class GeneralTest {
         List<Integer> queriesPerc = new ArrayList<Integer>();
         queriesPerc.add(1);
         queriesPerc.add(1);
-        queriesPerc.add(3);
+        queriesPerc.add(10);
 
         //////////////////////////////////////////////
 //
@@ -42,16 +42,16 @@ public class GeneralTest {
         ///////////////////////////////////////////////
         int X=3;
 
-        String[] cfs = new String[]{"dm2","dm6","dm6"};
+        String[] cfs = new String[]{"dm1","dm1","dm4"};
 
         List<List<Integer>> qchooseX = new ArrayList<List<Integer>>();
         for(int i=0;i<X;i++) {
             qchooseX.add(new ArrayList<Integer>());
         }
-        qchooseX.get(0).add(1);// TODO:这里qchooseX从0开始！
         qchooseX.get(0).add(2);// TODO:这里qchooseX从0开始！
-        qchooseX.get(1).add(0);// TODO:这里qchooseX从0开始！
+        qchooseX.get(1).add(2);// TODO:这里qchooseX从0开始！
         qchooseX.get(2).add(0);// TODO:这里qchooseX从0开始！
+        qchooseX.get(2).add(1);// TODO:这里qchooseX从0开始！
 
 
         General general = new General("panda", cfs,

@@ -11,17 +11,11 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
 
-/*
- 我想我可以统一无异构时数据存储结构优化和多副本异构优化
-
-1）	副本异构时的查询分流原则：最小HB
-比HR具有更好的负载均衡性，比单纯站在副本负载均衡角度分流对查询更友好，且考虑到其实副本所在结点的工作情况不是完全可控的，所以单纯站在副本负载均衡角度可能牺牲了单查询的latency也未必能达到效果，还不如在一个给定副本异构状态的情况下，先去对查询友好，至于最终的优化目标通过查找更好的副本异构状态来满足
-2）	副本异构状态的目标函数值：按照分流原则之后的所有副本各自计算HB，然后取其中最大的HB作为这个状态的目标函数值
-3）	算法流程：两步式
-第一步：SA，输入给定数据参数、查询参数，输出找到的状态目标函数值max(sum HB)近似最小的一组解（访问方式等到最后最优解出来之后再给出来用于实际指导查询路由也不迟）
-第二步：取出这组解中max(sum HR)最小的一组解。（还是sum(sum HR)最小呢？）
+/**
+ * 希望证明的是在查询分流阶段使用最小HR原则不如最小HB的min(max)来的小，因为猜想最小HR的粒度更细，查询分流也更容易聚集到同一个副本，
+ * 分散性不如block粒度
  */
-public class Unify {
+public class Unify_HR_BadProof {
     public  boolean isDiffReplicated = false; // 统一无异构优化数据存储结构和异构
 
     // 数据分布参数
@@ -42,8 +36,7 @@ public class Unify {
     // 分流策略：简单的代价最小原则
     public BigDecimal HBCost; // 某个状态解的代价评价：查询按照分流策略分流之后累计的查询代价
     public List<List<Integer>> qchooseX; // queries中每一个查询的路由结果记录，这里是从0开始
-    public BigDecimal HBCost_best;// SA每次内圈得到新状态之后维护的最优状态值
-    public BigDecimal HBCost_best_bigloop; // SA外圈循环记录每次外圈退温时记忆中保持的最优状态值
+    public BigDecimal HRCost_best_bigloop; // SA外圈循环记录每次外圈退温时记忆中保持的最优状态值
     public Set<XAckSeq> ackSeq_best_step1;//记忆性 SA维护的最优状态解集
 
     public BigDecimal HRCost;
@@ -53,10 +46,10 @@ public class Unify {
 
     public int X; // 给定的异构副本数量
 
-    public Unify(BigDecimal totalRowNumber, int ckn, List<Column_ian>CKdist,
-                           int rowSize, int blockSize,
-                           List<Integer> queriesPerc, List<RangeQuery> queries,
-                           int X) {
+    public Unify_HR_BadProof(BigDecimal totalRowNumber, int ckn, List<Column_ian>CKdist,
+                 int rowSize, int blockSize,
+                 List<Integer> queriesPerc, List<RangeQuery> queries,
+                 int X) {
         this.totalRowNumber = totalRowNumber;
         this.ckn = ckn;
         this.CKdist = CKdist;
@@ -132,7 +125,7 @@ public class Unify {
                 h = new H_ian(totalRowNumber, ckn, CKdist,
                         q.qckn, q.qck_r1_abs, q.qck_r2_abs, q.r1_closed, q.r2_closed, q.qck_p_abs,
                         xackSeq[choose].ackSeq);
-                XRload[choose] = XRload[choose].add(h.calculate().multiply(averageQPer));
+                XRload[choose]=XRload[choose].add(h.calculate().multiply(averageQPer));
             }
         }
 
@@ -188,7 +181,7 @@ public class Unify {
      * 状态目标值为HR
      *
      */
-    public void SA_b() {
+    public void SA() {
         //确定初温：
         // 随机产生一组状态，确定两两状态间的最大目标值差，然后依据差值，利用一定的函数确定初温
         int setNum = 20;
@@ -198,30 +191,30 @@ public class Unify {
             shuffle(xackSeq);
             xackSeqList.add(xackSeq);
         }
-        BigDecimal maxDeltaB = new BigDecimal("0"); // 两两状态间的最大目标值差
+        BigDecimal maxDeltaR = new BigDecimal("0"); // 两两状态间的最大目标值差
         for(int i=0;i<setNum-1;i++) {
             for(int j =i+1;j<setNum;j++) {
                 calculate(xackSeqList.get(i));
-                BigDecimal tmp = new BigDecimal(HBCost.toString());
+                BigDecimal tmp = new BigDecimal(HRCost.toString());
                 calculate(xackSeqList.get(j));
-                tmp = tmp.subtract(HBCost).abs();
-                if(tmp.compareTo(maxDeltaB) == 1) // tmp > maxDeltaB
-                    maxDeltaB = tmp;
+                tmp = tmp.subtract(HRCost).abs();
+                if(tmp.compareTo(maxDeltaR) == 1) // tmp > maxDeltaB
+                    maxDeltaR = tmp;
             }
         }
         double pr = 0.8;
-        if(maxDeltaB.compareTo(new BigDecimal("0")) == 0) {
-            maxDeltaB = new BigDecimal("0.001");
+        if(maxDeltaR.compareTo(new BigDecimal("0")) == 0) {
+            maxDeltaR = new BigDecimal("0.001");
         }
-        BigDecimal t0 = maxDeltaB.negate().divide(new BigDecimal(Math.log(pr)),10, RoundingMode.HALF_UP);
+        BigDecimal t0 = maxDeltaR.negate().divide(new BigDecimal(Math.log(pr)),10, RoundingMode.HALF_UP);
         System.out.println("初温为："+t0);
 
         //确定初始解
         AckSeq[] currentAckSeq  = new AckSeq[X];
         shuffle(currentAckSeq);
         calculate(currentAckSeq);
-        HBCost_best = new BigDecimal(HBCost.toString()); // 至于把currentAckSeq加进Set在后面完成的
-        HBCost_best_bigloop = new BigDecimal(HBCost.toString());
+        HRCost_best = new BigDecimal(HRCost.toString()); // 至于把currentAckSeq加进Set在后面完成的
+        HRCost_best_bigloop = new BigDecimal(HRCost.toString());
 
         int endCriteria = 20;// 终止准则: BEST SO FAR连续20次退温保持不变
         int endCount = 0;
@@ -232,9 +225,9 @@ public class Unify {
             // 记忆性：注意中间最优结果记下来
             for(int sampleloop = 0; sampleloop < sampleCount; sampleloop++) {
                 //增加记忆性
-                int comp = HBCost.compareTo(HBCost_best);
+                int comp = HRCost.compareTo(HRCost_best);
                 if(comp==-1) { //<
-                    HBCost_best = HBCost;
+                    HRCost_best = HRCost;
                     ackSeq_best_step1.clear();
                     ackSeq_best_step1.add(new XAckSeq(currentAckSeq));
                 }
@@ -245,9 +238,9 @@ public class Unify {
                 //由当前状态产生新状态
                 AckSeq[] nextAckSeq = generateNewStateX(currentAckSeq);
                 //接受函数接受否
-                BigDecimal currentHB = new BigDecimal(HBCost.toString()); // 当前状态的状态值保存在HB
-                calculate(nextAckSeq); // HB会被改变
-                BigDecimal delta = HBCost.subtract(currentHB); // 新旧状态的目标函数值差
+                BigDecimal currentHR = new BigDecimal(HRCost.toString()); // 当前状态的状态值保存在HR
+                calculate(nextAckSeq); // HR会被改变
+                BigDecimal delta = HRCost.subtract(currentHR); // 新旧状态的目标函数值差
                 double threshold;
                 if(delta.compareTo(new BigDecimal("0"))!=1) { // <
                     threshold = 1;
@@ -265,15 +258,15 @@ public class Unify {
                     // HR就是现在更新后的HR
                 }
                 else {// 否则保持当前状态不变
-                    HBCost = currentHB;//恢复原来解的状态值
+                    HRCost = currentHR;//恢复原来解的状态值
                     System.out.println("维持当前状态不变");
                     // currentAckSeq就是原本的
                 }
             }
 
-            if(!HBCost_best.equals(HBCost_best_bigloop)) {
+            if(!HRCost_best.equals(HRCost_best_bigloop)) {
                 endCount = 0; // 重新计数
-                HBCost_best_bigloop = HBCost_best; // 把当前最小值传递给外圈循环
+                HRCost_best_bigloop = HRCost_best; // 把当前最小值传递给外圈循环
                 System.out.println("【这次退温BEST SO FAR改变】");
             }
             else { // 这次退温后best_so_far和上次比没有改变
@@ -288,45 +281,17 @@ public class Unify {
     }
 
 
-    /**
-     * 改进SA两步式第二步：在HB近似最小的一组解中找到HR最小的解
-     * 状态目标值：HR
-     */
-    public void SA_r() {
-        Iterator iterator = ackSeq_best_step1.iterator();
-        if (iterator.hasNext()) {
-            XAckSeq xack = (XAckSeq) iterator.next();
-            calculate(xack.xackSeq);
-            HRCost_best = HRCost;
-            ackSeq_best_step2.add(xack);
-        }
-        while (iterator.hasNext()) {
-            XAckSeq xack = (XAckSeq) iterator.next();
-            calculate(xack.xackSeq);
-            int res = HRCost.compareTo(HRCost_best);
-            if (res == -1) { //<
-                HRCost_best = HRCost;
-                ackSeq_best_step2.clear();
-                ackSeq_best_step2.add(xack);
-            } else if (res == 0) {
-                ackSeq_best_step2.add(xack);
-            }
-        }
-    }
-
     public void combine() {
         System.out.println("----------------------------------------------------");
-        // 第一步： SA找到HB代价近似最小的一组解
-        SA_b();
-        System.out.println("step1完成: SA找到HBCost近似最小的"+ackSeq_best_step1.size()+"个近似最优解:");
-        SA_r();
-        System.out.println("step2完成:从上一步的解集中找到HR最小的"+ackSeq_best_step2.size()+"个解:");
-        for(XAckSeq xackSeq: ackSeq_best_step2) {
+        // 第一步： SA找到HR代价近似最小的一组解
+        SA();
+        System.out.println("完成: SA找到HRCost近似最小的"+ackSeq_best_step1.size()+"个近似最优解:");
+        for(XAckSeq xackSeq: ackSeq_best_step1) {
             //System.out.print(xackSeq+": ");
             calculate(xackSeq.xackSeq);
 //            Output = xackSeq;
         } // 此时结束之后Output以及unify中的所有属性都是ackSeq_best_step2中最后一个元素的计算结果
-        System.out.println("目标值HB近似最小为："+HBCost_best);
+        System.out.println("目标值HB近似最小为："+HBCost);
         System.out.println("目标值HR近似最小为："+HRCost_best);
 //        System.out.println("算法给出一个最后的结果为: ");
 //        calculate(Output.xackSeq);
@@ -497,6 +462,4 @@ public class Unify {
             }
         }
     }
-
-
 }
