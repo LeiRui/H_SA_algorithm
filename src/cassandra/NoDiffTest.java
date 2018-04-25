@@ -14,6 +14,7 @@ import jnr.ffi.annotations.In;
 /*
   测试无副本异构情况下，算法通过改进数据存储结构能够带来的查询代价的提升
  */
+@Deprecated
 public class NoDiffTest {
 
     // Unity包含算法所需的所有输入和输出

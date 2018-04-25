@@ -14,7 +14,7 @@ import java.util.List;
 public class Test {
     public static void main(String[] args) {
         // 数据分布参数
-        BigDecimal totalRowNumber = new BigDecimal("1000000");
+        BigDecimal totalRowNumber = new BigDecimal("100000000");
         int ckn=3;
 
         List<Column_ian> CKdist = new ArrayList<Column_ian>();
@@ -87,7 +87,9 @@ public class Test {
                 queriesPerc, queries, X);
         unify.isDiffReplicated = true;
         unify.combine();
-
+//        unify.calculate(new AckSeq[]{new AckSeq(new int[]{3,2,1}),
+//                new AckSeq(new int[]{1,2,3}),
+//                new AckSeq(new int[]{3,1,2})});
 
 //        int X = 3;
 //        Unify_HR_BadProof unify = new Unify_HR_BadProof(totalRowNumber,

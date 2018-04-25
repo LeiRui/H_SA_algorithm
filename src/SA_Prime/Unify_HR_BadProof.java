@@ -15,6 +15,7 @@ import java.util.*;
  * 希望证明的是在查询分流阶段使用最小HR原则不如最小HB的min(max)来的小，因为猜想最小HR的粒度更细，查询分流也更容易聚集到同一个副本，
  * 分散性不如block粒度
  */
+@ Deprecated
 public class Unify_HR_BadProof {
     public  boolean isDiffReplicated = false; // 统一无异构优化数据存储结构和异构
 

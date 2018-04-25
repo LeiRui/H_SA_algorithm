@@ -19,7 +19,6 @@ import java.util.Set;
  在ckn=3，X=3时全解空间大小是3!*3!*3!=6*6*6=216个（认为X个副本之间是有排列的话，
  虽然算法中判断两个解是否相等的时候是不管排列顺序的@XAckSeq
  也就是说216个里会有重复，或者用Set<XAckSeq>来自动去重吧
- 216/A33=216/6=36种？
 
 
 2,1,2
@@ -114,7 +113,7 @@ public class FullCompareTest {
         Set<XAckSeq> removeRepeat = new HashSet<XAckSeq>();
         for(int i=0;i<1;i++) {
             for(int j=0;j<1;j++) { // 换成j=i好像也可以达到去重的效果？
-                for(int z=0;z<1;z++) { // 换成z=j好像也可以达到去重的效果？
+                for(int z=0;z<2;z++) { // 换成z=j好像也可以达到去重的效果？
                     XAckSeq xAckSeq = new XAckSeq(new AckSeq[]{new AckSeq(cfs_map.get(i)),
                             new AckSeq(cfs_map.get(j)),
                             new AckSeq(cfs_map.get(z))});

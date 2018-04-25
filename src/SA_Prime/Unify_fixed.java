@@ -135,6 +135,7 @@ public class Unify_fixed{
         // max(sum HB)的max
         List<Integer> maxR=new ArrayList<Integer>();
         HBCost = XBload[0];
+        maxR.add(0);
         for(int i=1;i<X;i++) {
             int res = XBload[i].compareTo(HBCost);
             if(res == 1) {

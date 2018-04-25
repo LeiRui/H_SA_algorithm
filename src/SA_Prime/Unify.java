@@ -21,6 +21,7 @@ import java.util.*;
 第一步：SA，输入给定数据参数、查询参数，输出找到的状态目标函数值max(sum HB)近似最小的一组解（访问方式等到最后最优解出来之后再给出来用于实际指导查询路由也不迟）
 第二步：取出这组解中max(sum HR)最小的一组解。（还是sum(sum HR)最小呢？）
  */
+@ Deprecated
 public class Unify {
     public  boolean isDiffReplicated = false; // 统一无异构优化数据存储结构和异构
 
