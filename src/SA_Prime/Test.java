@@ -1,7 +1,6 @@
 package SA_Prime;
 
 import HModel.Column_ian;
-import SA_Venus.DiffReplicas_HB;
 import cassandra.EasyNoDiffTest;
 import cassandra.General;
 import query.AckSeq;

@@ -60,7 +60,7 @@ public class General {
             }
         }
         for(int i=0;i<X;i++) {
-            System.out.println("replica "+i+" "+cfs[i]);
+            System.out.println("replica"+i+" "+cfs[i]);
             List<String> sql = Xsqls.get(i);
             List<Double> qperc = Xqperc.get(i);
             for(int j=0;j<sql.size();j++) {
@@ -121,7 +121,7 @@ public class General {
             elapsed = System.nanoTime() - elapsed;
             double cost = elapsed / (double) Math.pow(10, 6); // unit: ms
             parallelCost[i] = cost / N;
-            System.out.printf("replica %d:%fms\n", i, parallelCost[i]);
+            System.out.printf("replica%d:%fms\n", i, parallelCost[i]);
             session.close();
             cluster.close();
         }
