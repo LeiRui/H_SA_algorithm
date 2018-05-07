@@ -8,6 +8,8 @@ import java.util.List;
 
 /*
   改变数据存储结构对应查询代价建模
+
+  单查询代价建模？
  */
 public class H_ian {
     public BigDecimal totalRowNumber;
@@ -123,6 +125,54 @@ public class H_ian {
         // 这里不能保留2位小数什么的，因为这里如果totalRowNumber给小了，结果HR就是0.02这种，再一保留两位小数就都一样了
     }
 
+
+    /**
+     * 新的单查询代价模型
+     * 尽量精确估计
+     *
+     * @param fetchRowSize
+     * @param costModel_k
+     * @param costModel_b
+     * @param cost_session_around
+     * @param cost_request_around
+     * @return 估计的单查询查询时间代价 单位us
+     */
+    public BigDecimal calculate(int fetchRowSize, double costModel_k, double costModel_b, double cost_session_around, double cost_request_around) {
+        resP = 1;
+        for (int i = 0; i < qackn; i++) { // qackn是从0开始的，这里刚好表示qckn-1个
+            resP *= ACKdist.get(i).getPoint(qack_p[i]);
+        }
+        switch (type) {
+            case LcRc:
+                resP *= ACKdist.get(qackn).getBetween(qck_r1, qck_r2, Column_ian.rangeType.LcRc);
+                break;
+            case LcRo:
+                resP *= ACKdist.get(qackn).getBetween(qck_r1, qck_r2, Column_ian.rangeType.LcRo);
+                break;
+            case LoRc:
+                resP *= ACKdist.get(qackn).getBetween(qck_r1, qck_r2, Column_ian.rangeType.LoRc);
+                break;
+            case LoRo:
+                resP *= ACKdist.get(qackn).getBetween(qck_r1, qck_r2, Column_ian.rangeType.LoRo);
+                break;
+        }
+        BigDecimal candidate_rows_cnt = totalRowNumber.multiply(new BigDecimal(resP)); // 候选集行数估计
+        for (int i = qackn+1; i < ckn; i++) {
+            resP *= ACKdist.get(i).getPoint(qack_p[i]);
+        }
+        BigDecimal result_rows_cnt = totalRowNumber.multiply(new BigDecimal(resP)); // 结果行数估计
+
+        /*
+          代价模型：
+          result_row_cnt = fetchRowCnt*n+m
+          Cost = cost_session_around+(n+1)*(cost_request_around+b)+k*candidate_rows_cnt;
+         */
+        BigDecimal n = result_rows_cnt.divide(new BigDecimal(fetchRowSize)).setScale(0, RoundingMode.FLOOR);
+        BigDecimal nplus1 = n.add(new BigDecimal("1"));
+        BigDecimal cost_part = nplus1.multiply(new BigDecimal(cost_request_around+costModel_b));
+
+        return new BigDecimal(cost_session_around).add(cost_part).add(candidate_rows_cnt.multiply(new BigDecimal(costModel_k)));
+    }
 
     /**
      * @param rowSize

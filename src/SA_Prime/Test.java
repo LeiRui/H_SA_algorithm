@@ -13,7 +13,7 @@ import java.util.List;
 public class Test {
     public static void main(String[] args) {
         // 数据分布参数
-        BigDecimal totalRowNumber = new BigDecimal("100000000");
+        BigDecimal totalRowNumber = new BigDecimal("100000");
         int ckn=3;
 
         List<Column_ian> CKdist = new ArrayList<Column_ian>();
@@ -35,11 +35,15 @@ public class Test {
 
         // 数据存储参数
         int rowSize = 24;
-        int blockSize = 65536;
+        int fetchRowCnt = 100;
+        double costModel_k = 2.473;
+        double costModel_b = 9007;
+        double cost_session_around = 162;
+        double cost_request_around = 1146;
 
         // 查询参数
         List<Integer> queriesPerc = new ArrayList();
-        queriesPerc.add(5);
+        queriesPerc.add(100);
         queriesPerc.add(3);
         queriesPerc.add(1);
 
@@ -80,9 +84,9 @@ public class Test {
 
 
         int X = 3;
-        Unify_fixed unify = new Unify_fixed(totalRowNumber,
+        Unify_Mara unify = new Unify_Mara(totalRowNumber,
                 ckn, CKdist,
-                rowSize, blockSize,
+                rowSize,fetchRowCnt,costModel_k,costModel_b,cost_session_around,cost_request_around,
                 queriesPerc, queries, X);
         unify.isDiffReplicated = true;
         unify.combine();

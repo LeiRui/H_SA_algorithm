@@ -11,12 +11,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
 
-/*
-好像比较max(sum HR)也不太合适 sum还是有问题。在max(sum HB)最小的一组解中，
-比较max(sum HB)的取max的那个瓶颈副本的累加HR？而不是用所有副本的max(sum HR)?
-因为后者其实又脱离HB相同的前提了，可能取到max sumHR的副本的HB不是最大的，造成错位比较了。
- */
-public class Unify_fixed{
+public class Unify_Mara {
     public  boolean isDiffReplicated = false; // 统一无异构优化数据存储结构和异构
 
     // 数据分布参数
@@ -25,7 +20,12 @@ public class Unify_fixed{
     private List<Column_ian> CKdist;
     // 数据存储参数
     private int rowSize;// unit: byte
-    private int blockSize;// unit: byte default: 65536
+    private int fetchRowCnt; // 工程实践设置的分批一次取结果最大行数
+    private double costModel_k; // merged cost: f(x)=k*x+b
+    private double costModel_b; // merged cost: f(x)=k*x+b
+    private double cost_session_around; // Cost的其余组成部分  unit:us
+    private double cost_request_around; // Cost的其余组成部分  unit:us
+
     // 查询参数
     public List<Integer> queriesPerc;
     private List<RangeQuery> queries;
@@ -35,32 +35,35 @@ public class Unify_fixed{
     // SA
     // X个异构副本组成一个状态解
     // 分流策略：简单的代价最小原则
-    public BigDecimal HBCost; // 某个状态解的代价评价：查询按照分流策略分流之后累计的查询代价
+    public BigDecimal Cost; // 某个状态解的代价评价：查询按照分流策略分流之后累计的查询代价
     public List<List<Integer>> qchooseX; // queries中每一个查询的路由结果记录，这里是从0开始
-    public BigDecimal HBCost_best;// SA每次内圈得到新状态之后维护的最优状态值
-    public BigDecimal HBCost_best_bigloop; // SA外圈循环记录每次外圈退温时记忆中保持的最优状态值
-    public Set<XAckSeq> ackSeq_best_step1;//记忆性 SA维护的最优状态解集
+    public BigDecimal Cost_best;// SA每次内圈得到新状态之后维护的最优状态值
+    public BigDecimal Cost_best_bigloop; // SA外圈循环记录每次外圈退温时记忆中保持的最优状态值
+    public Set<XAckSeq> ackSeq_best_step;//记忆性 SA维护的最优状态解集
 
-    public BigDecimal HRCost;
-    public BigDecimal HRCost_best;
-    public Set<XAckSeq> ackSeq_best_step2;
 //    public XAckSeq Output; // 最后的输出
 
     public int X; // 给定的异构副本数量
 
-    public Unify_fixed(BigDecimal totalRowNumber, int ckn, List<Column_ian>CKdist,
-                 int rowSize, int blockSize,
-                 List<Integer> queriesPerc, List<RangeQuery> queries,
-                 int X) {
+    public Unify_Mara(BigDecimal totalRowNumber, int ckn, List<Column_ian>CKdist,
+                       int rowSize, int fetchRowCnt, double costModel_k, double costModel_b, double cost_session_around, double cost_request_around,
+                       List<Integer> queriesPerc, List<RangeQuery> queries,
+                       int X) {
         this.totalRowNumber = totalRowNumber;
         this.ckn = ckn;
         this.CKdist = CKdist;
+
         this.rowSize = rowSize;
-        this.blockSize = blockSize;
+        this.fetchRowCnt = fetchRowCnt;
+        this.costModel_k = costModel_k;
+        this.costModel_b = costModel_b;
+        this.cost_session_around = cost_session_around;
+        this.cost_request_around = cost_request_around;
+
         this.queriesPerc = queriesPerc;
         this.queries = queries;
-        this.ackSeq_best_step1 = new HashSet();
-        this.ackSeq_best_step2 = new HashSet();
+
+        this.ackSeq_best_step = new HashSet();
         sqls = new ArrayList();
         this.X = X;
         this.qchooseX = new ArrayList();
@@ -69,19 +72,18 @@ public class Unify_fixed{
 
     /**
      * 关键的状态评价函数
+     *
      * 输入：一个状态,X个异构副本组成一个状态解
-     * 分流策略：最小HB
-     * 状态目标函数值：HCost = max(sum HB)
-     * 输出：输入状态的目标函数值HCost
+     * 分流策略：最小Cost  TODO 暂时用精确Cost最小作为分流策略
+     * 状态目标函数值：TotalCost = max(sum Cost)
+     * 输出：输入状态的目标函数值TotalCost
      *
      * @param xackSeq X个异构副本组成一个状态解
      */
     public void calculate(AckSeq[] xackSeq) {
-        BigDecimal[] XBload = new BigDecimal[X]; // 用于后面取max(sum HB)
-        BigDecimal[] XRload = new BigDecimal[X]; // 用于后面取max(sum HR)
+        BigDecimal[] XCostload = new BigDecimal[X]; // 用于后面取max(sum HB)
         for(int i=0;i<X;i++) {
-            XBload[i] = new BigDecimal("0");
-            XRload[i] = new BigDecimal("0");
+            XCostload[i] = new BigDecimal("0");
         }
 
         qchooseX.clear(); // 每次要清空重新add
@@ -95,8 +97,8 @@ public class Unify_fixed{
             H_ian h = new H_ian(totalRowNumber,ckn,CKdist,
                     q.qckn,q.qck_r1_abs,q.qck_r2_abs,q.r1_closed,q.r2_closed, q.qck_p_abs,
                     xackSeq[0].ackSeq);
-            BigDecimal chooseHB = h.calculate(rowSize,blockSize);
-            BigDecimal tmpHB;
+            BigDecimal chooseCost = h.calculate(fetchRowCnt,costModel_k,costModel_b,cost_session_around,cost_request_around);
+            BigDecimal tmpCost;
             if(sqls.size() == i) {
                 sqls.add(h.getSql(Constant.ks,Constant.cf));
             }
@@ -104,14 +106,14 @@ public class Unify_fixed{
                 h = new H_ian(totalRowNumber,ckn,CKdist,
                         q.qckn,q.qck_r1_abs,q.qck_r2_abs,q.r1_closed,q.r2_closed, q.qck_p_abs,
                         xackSeq[j].ackSeq);
-                tmpHB = h.calculate(rowSize,blockSize);
-                int res = tmpHB.compareTo(chooseHB);
+                tmpCost = h.calculate(fetchRowCnt,costModel_k,costModel_b,cost_session_around,cost_request_around);
+                int res = tmpCost.compareTo(chooseCost);
                 if(res == -1) {
-                    chooseHB = tmpHB; // note 引用
+                    chooseCost = tmpCost; // note 引用
                     chooseX.clear();
                     chooseX.add(j);
                 }
-                else if(res == 0) {
+                else if(res == 0) { // TODO 暂时用精确的话这个几乎不会发生 等到模糊化时再探讨
                     chooseX.add(j);
                 }
             }//X个副本遍历结束，现在已经确定了这个query按照最小HB原则分流到的副本chooseX，以及这个最小HB等于多少
@@ -119,46 +121,33 @@ public class Unify_fixed{
             //接下来更新XBload和XRload
             int chooseNumber = chooseX.size();
             BigDecimal averageQPer = new BigDecimal(qper).divide(new BigDecimal(chooseNumber),10, RoundingMode.HALF_UP);
-            BigDecimal averageHB = chooseHB.multiply(averageQPer);
+            BigDecimal averageHB = chooseCost.multiply(averageQPer);
             for(int j=0;j<chooseNumber;j++) {
                 int choose = chooseX.get(j);
-                XBload[choose]=XBload[choose].add(averageHB); // note 光是.add是不行的 要赋值！
-
-                h = new H_ian(totalRowNumber, ckn, CKdist,
-                        q.qckn, q.qck_r1_abs, q.qck_r2_abs, q.r1_closed, q.r2_closed, q.qck_p_abs,
-                        xackSeq[choose].ackSeq);
-                XRload[choose] = XRload[choose].add(h.calculate().multiply(averageQPer));
+                XCostload[choose]=XCostload[choose].add(averageHB); // note 光是.add是不行的 要赋值！
             }
         }
 
         // max(sum HB)的max
         List<Integer> maxR=new ArrayList<Integer>();
-        HBCost = XBload[0];
+        Cost = XCostload[0];
         maxR.add(0);
         for(int i=1;i<X;i++) {
-            int res = XBload[i].compareTo(HBCost);
+            int res = XCostload[i].compareTo(Cost);
             if(res == 1) {
                 maxR.clear();
                 maxR.add(i);
-                HBCost = XBload[i];
+                Cost = XCostload[i];
             }
             else if(res == 0) {
                 maxR.add(i);
             }
         }
-        //再比较max(sum HB)相同的几个副本的HR，取最大者作为该状态的HRCost
-        HRCost = new BigDecimal("0");// HRCost is dependent on max HBCost first
-        for(int i=0;i<maxR.size();i++) {
-            if(XRload[maxR.get(i)].compareTo(HRCost) == 1) {
-                HRCost = XRload[maxR.get(i)];
-            }
-        }
-
 
         //打印结果
-        System.out.print(String.format("HB:%.2f HR:%.2f| ",HBCost,HRCost));
+        System.out.print(String.format("Cost:%.2f us| ",Cost));
         for(int i=0;i<X;i++) {
-            System.out.print(String.format("%s:%.2f ",xackSeq[i],XBload[i]));
+            System.out.print(String.format("%s:%.2f us",xackSeq[i],XCostload[i])); // 用查询执行耗时作为load负载评价
         }
         for(int i=0;i<qnum; i++) {
             System.out.print(String.format("|q%d->",i+1));
@@ -202,30 +191,30 @@ public class Unify_fixed{
             shuffle(xackSeq);
             xackSeqList.add(xackSeq);
         }
-        BigDecimal maxDeltaB = new BigDecimal("0"); // 两两状态间的最大目标值差
+        BigDecimal maxDeltaC = new BigDecimal("0"); // 两两状态间的最大目标值差
         for(int i=0;i<setNum-1;i++) {
             for(int j =i+1;j<setNum;j++) {
                 calculate(xackSeqList.get(i));
-                BigDecimal tmp = new BigDecimal(HBCost.toString());
+                BigDecimal tmp = new BigDecimal(Cost.toString());
                 calculate(xackSeqList.get(j));
-                tmp = tmp.subtract(HBCost).abs();
-                if(tmp.compareTo(maxDeltaB) == 1) // tmp > maxDeltaB
-                    maxDeltaB = tmp;
+                tmp = tmp.subtract(Cost).abs();
+                if(tmp.compareTo(maxDeltaC) == 1) // tmp > maxDeltaB
+                    maxDeltaC = tmp;
             }
         }
         double pr = 0.8;
-        if(maxDeltaB.compareTo(new BigDecimal("0")) == 0) {
-            maxDeltaB = new BigDecimal("0.001");
+        if(maxDeltaC.compareTo(new BigDecimal("0")) == 0) {
+            maxDeltaC = new BigDecimal("0.001");
         }
-        BigDecimal t0 = maxDeltaB.negate().divide(new BigDecimal(Math.log(pr)),10, RoundingMode.HALF_UP);
+        BigDecimal t0 = maxDeltaC.negate().divide(new BigDecimal(Math.log(pr)),10, RoundingMode.HALF_UP);
         System.out.println("初温为："+t0);
 
         //确定初始解
         AckSeq[] currentAckSeq  = new AckSeq[X];
         shuffle(currentAckSeq);
         calculate(currentAckSeq);
-        HBCost_best = new BigDecimal(HBCost.toString()); // 至于把currentAckSeq加进Set在后面完成的
-        HBCost_best_bigloop = new BigDecimal(HBCost.toString());
+        Cost_best = new BigDecimal(Cost.toString()); // 至于把currentAckSeq加进Set在后面完成的
+        Cost_best_bigloop = new BigDecimal(Cost.toString());
 
         int endCriteria = 20;// 终止准则: BEST SO FAR连续20次退温保持不变
         int endCount = 0;
@@ -236,22 +225,22 @@ public class Unify_fixed{
             // 记忆性：注意中间最优结果记下来
             for(int sampleloop = 0; sampleloop < sampleCount; sampleloop++) {
                 //增加记忆性
-                int comp = HBCost.compareTo(HBCost_best);
+                int comp = Cost.compareTo(Cost_best);
                 if(comp==-1) { //<
-                    HBCost_best = HBCost;
-                    ackSeq_best_step1.clear();
-                    ackSeq_best_step1.add(new XAckSeq(currentAckSeq));
+                    Cost_best = Cost;
+                    ackSeq_best_step.clear();
+                    ackSeq_best_step.add(new XAckSeq(currentAckSeq));
                 }
                 else if(comp==0) {
-                    ackSeq_best_step1.add(new XAckSeq(currentAckSeq));
+                    ackSeq_best_step.add(new XAckSeq(currentAckSeq));
                 }
 
                 //由当前状态产生新状态
                 AckSeq[] nextAckSeq = generateNewStateX(currentAckSeq);
                 //接受函数接受否
-                BigDecimal currentHB = new BigDecimal(HBCost.toString()); // 当前状态的状态值保存在HB
-                calculate(nextAckSeq); // HB会被改变
-                BigDecimal delta = HBCost.subtract(currentHB); // 新旧状态的目标函数值差
+                BigDecimal currentCost = new BigDecimal(Cost.toString()); // 当前状态的状态值保存在Cost
+                calculate(nextAckSeq); // Cost会被改变
+                BigDecimal delta = Cost.subtract(currentCost); // 新旧状态的目标函数值差
                 double threshold;
                 if(delta.compareTo(new BigDecimal("0"))!=1) { // <
                     threshold = 1;
@@ -269,15 +258,15 @@ public class Unify_fixed{
                     // HR就是现在更新后的HR
                 }
                 else {// 否则保持当前状态不变
-                    HBCost = currentHB;//恢复原来解的状态值
+                    Cost = currentCost;//恢复原来解的状态值
                     System.out.println("维持当前状态不变");
                     // currentAckSeq就是原本的
                 }
             }
 
-            if(!HBCost_best.equals(HBCost_best_bigloop)) {
+            if(!Cost_best.equals(Cost_best_bigloop)) {
                 endCount = 0; // 重新计数
-                HBCost_best_bigloop = HBCost_best; // 把当前最小值传递给外圈循环
+                Cost_best_bigloop = Cost_best; // 把当前最小值传递给外圈循环
                 System.out.println("【这次退温BEST SO FAR改变】");
             }
             else { // 这次退温后best_so_far和上次比没有改变
@@ -292,46 +281,17 @@ public class Unify_fixed{
     }
 
 
-    /**
-     * 改进SA两步式第二步：在HB近似最小的一组解中找到HR最小的解
-     * 状态目标值：HR
-     */
-    public void SA_r() {
-        Iterator iterator = ackSeq_best_step1.iterator();
-        if (iterator.hasNext()) {
-            XAckSeq xack = (XAckSeq) iterator.next();
-            calculate(xack.xackSeq);
-            HRCost_best = HRCost;
-            ackSeq_best_step2.add(xack);
-        }
-        while (iterator.hasNext()) {
-            XAckSeq xack = (XAckSeq) iterator.next();
-            calculate(xack.xackSeq);
-            int res = HRCost.compareTo(HRCost_best);
-            if (res == -1) { //<
-                HRCost_best = HRCost;
-                ackSeq_best_step2.clear();
-                ackSeq_best_step2.add(xack);
-            } else if (res == 0) {
-                ackSeq_best_step2.add(xack);
-            }
-        }
-    }
-
     public void combine() {
         System.out.println("----------------------------------------------------");
-        // 第一步： SA找到HB代价近似最小的一组解
+        // 第一步： SA找到Cost代价近似最小的一组解
         SA_b();
-        System.out.println("step1完成: SA找到HBCost近似最小的"+ackSeq_best_step1.size()+"个近似最优解:");
-        SA_r();
-        System.out.println("step2完成:从上一步的解集中找到HR最小的"+ackSeq_best_step2.size()+"个解:");
-        for(XAckSeq xackSeq: ackSeq_best_step2) {
+        System.out.println("step1完成: SA找到HBCost近似最小的"+ackSeq_best_step.size()+"个近似最优解:");
+        for(XAckSeq xackSeq: ackSeq_best_step) {
             //System.out.print(xackSeq+": ");
             calculate(xackSeq.xackSeq);
 //            Output = xackSeq;
         } // 此时结束之后Output以及unify中的所有属性都是ackSeq_best_step2中最后一个元素的计算结果
-        System.out.println("目标值HB近似最小为："+HBCost_best);
-        System.out.println("目标值HR近似最小为："+HRCost_best);
+        System.out.println("目标值HB近似最小为："+Cost_best);
 //        System.out.println("算法给出一个最后的结果为: ");
 //        calculate(Output.xackSeq);
         for(int i=0;i<sqls.size(); i++) {
@@ -501,6 +461,4 @@ public class Unify_fixed{
             }
         }
     }
-
-
 }
