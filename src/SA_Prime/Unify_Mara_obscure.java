@@ -7,11 +7,14 @@ import query.AckSeq;
 import query.RangeQuery;
 import query.XAckSeq;
 
+import java.io.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
 
-public class Unify_Mara {
+public class Unify_Mara_obscure {
+    public int margin_us = 0; // 查询路由采取cost最小原则 模糊限margin 单位us
+
     public  boolean isDiffReplicated = false; // 统一无异构优化数据存储结构和异构
 
     // 数据分布参数
@@ -45,10 +48,10 @@ public class Unify_Mara {
 
     public int X; // 给定的异构副本数量
 
-    public Unify_Mara(BigDecimal totalRowNumber, int ckn, List<Column_ian>CKdist,
-                       int rowSize, int fetchRowCnt, double costModel_k, double costModel_b, double cost_session_around, double cost_request_around,
-                       List<Integer> queriesPerc, List<RangeQuery> queries,
-                       int X) {
+    public Unify_Mara_obscure(BigDecimal totalRowNumber, int ckn, List<Column_ian>CKdist,
+                      int rowSize, int fetchRowCnt, double costModel_k, double costModel_b, double cost_session_around, double cost_request_around,
+                      List<Integer> queriesPerc, List<RangeQuery> queries,
+                      int X) {
         this.totalRowNumber = totalRowNumber;
         this.ckn = ckn;
         this.CKdist = CKdist;
@@ -92,12 +95,14 @@ public class Unify_Mara {
             RangeQuery q = queries.get(i);
             int qper = queriesPerc.get(i);
 
+            BigDecimal[] recordCost = new BigDecimal[X];
             List<Integer> chooseX = new ArrayList(); // 代价一样的副本平分负载
             chooseX.add(0);
             H_ian h = new H_ian(totalRowNumber,ckn,CKdist,
                     q.qckn,q.qck_r1_abs,q.qck_r2_abs,q.r1_closed,q.r2_closed, q.qck_p_abs,
                     xackSeq[0].ackSeq);
             BigDecimal chooseCost = h.calculate(fetchRowCnt,costModel_k,costModel_b,cost_session_around,cost_request_around);
+            recordCost[0] = chooseCost;
             BigDecimal tmpCost;
             if(sqls.size() == i) {
                 sqls.add(h.getSql(Constant.ks,Constant.cf));
@@ -107,6 +112,7 @@ public class Unify_Mara {
                         q.qckn,q.qck_r1_abs,q.qck_r2_abs,q.r1_closed,q.r2_closed, q.qck_p_abs,
                         xackSeq[j].ackSeq);
                 tmpCost = h.calculate(fetchRowCnt,costModel_k,costModel_b,cost_session_around,cost_request_around);
+                recordCost[j]=tmpCost;
                 int res = tmpCost.compareTo(chooseCost);
                 if(res == -1) {
                     chooseCost = tmpCost; // note 引用
@@ -117,14 +123,30 @@ public class Unify_Mara {
                     chooseX.add(j);
                 }
             }//X个副本遍历结束，现在已经确定了这个query按照最小HB原则分流到的副本chooseX，以及这个最小HB等于多少
+
+            BigDecimal margin = new BigDecimal(margin_us);//1ms
+            List<BigDecimal> chooseCostList = new ArrayList<BigDecimal>();
+            for(int c=0;c<chooseX.size();c++) {
+                chooseCostList.add(chooseCost);
+            }
+            for(int j=0;j<X;j++) { //重新遍历一遍，对分流模糊一层
+                if(chooseX.contains(j)) {
+                    continue;
+                }
+                if(recordCost[j].subtract(chooseCost).compareTo(margin)==-1){
+                    chooseX.add(j);
+                    chooseCostList.add(recordCost[j]);
+                }
+            }
+
             qchooseX.add(chooseX);
             //接下来更新XBload和XRload
             int chooseNumber = chooseX.size();
             BigDecimal averageQPer = new BigDecimal(qper).divide(new BigDecimal(chooseNumber),10, RoundingMode.HALF_UP);
-            BigDecimal averageHB = chooseCost.multiply(averageQPer);
+            //BigDecimal averageHB = chooseCost.multiply(averageQPer);
             for(int j=0;j<chooseNumber;j++) {
                 int choose = chooseX.get(j);
-                XCostload[choose]=XCostload[choose].add(averageHB); // note 光是.add是不行的 要赋值！
+                XCostload[choose]=XCostload[choose].add(chooseCostList.get(j).multiply(averageQPer)); // note 光是.add是不行的 要赋值！
             }
         }
 
@@ -161,6 +183,140 @@ public class Unify_Mara {
         }
         System.out.println("");
     }
+
+    /**
+     * 关键的状态评价函数  打印结果到文件版本
+     *
+     * 输入：一个状态,X个异构副本组成一个状态解
+     * 分流策略：最小Cost  TODO 暂时用精确Cost最小作为分流策略
+     * 状态目标函数值：TotalCost = max(sum Cost)
+     * 输出：输入状态的目标函数值TotalCost
+     *
+     * @param xackSeq X个异构副本组成一个状态解
+     */
+    public void calculate(AckSeq[] xackSeq, PrintWriter pw) {
+        BigDecimal[] XCostload = new BigDecimal[X]; // 用于后面取max(sum HB)
+        for(int i=0;i<X;i++) {
+            XCostload[i] = new BigDecimal("0");
+        }
+
+        qchooseX.clear(); // 每次要清空重新add
+        int qnum = queries.size();
+        for(int i=0; i<qnum; i++) {// 遍历queries
+            RangeQuery q = queries.get(i);
+            int qper = queriesPerc.get(i);
+
+            BigDecimal[] recordCost = new BigDecimal[X];
+            List<Integer> chooseX = new ArrayList(); // 代价一样的副本平分负载
+            chooseX.add(0);
+            H_ian h = new H_ian(totalRowNumber,ckn,CKdist,
+                    q.qckn,q.qck_r1_abs,q.qck_r2_abs,q.r1_closed,q.r2_closed, q.qck_p_abs,
+                    xackSeq[0].ackSeq);
+            BigDecimal chooseCost = h.calculate(fetchRowCnt,costModel_k,costModel_b,cost_session_around,cost_request_around);
+            recordCost[0] = chooseCost;
+            BigDecimal tmpCost;
+            if(sqls.size() == i) {
+                sqls.add(h.getSql(Constant.ks,Constant.cf));
+            }
+            for(int j=1;j<X;j++) { // 遍历X个副本，按照最小HB原则对q分流
+                h = new H_ian(totalRowNumber,ckn,CKdist,
+                        q.qckn,q.qck_r1_abs,q.qck_r2_abs,q.r1_closed,q.r2_closed, q.qck_p_abs,
+                        xackSeq[j].ackSeq);
+                tmpCost = h.calculate(fetchRowCnt,costModel_k,costModel_b,cost_session_around,cost_request_around);
+                recordCost[j]=tmpCost;
+                int res = tmpCost.compareTo(chooseCost);
+                if(res == -1) {
+                    chooseCost = tmpCost; // note 引用
+                    chooseX.clear();
+                    chooseX.add(j);
+                }
+                else if(res == 0) { // TODO 暂时用精确的话这个几乎不会发生 等到模糊化时再探讨
+                    chooseX.add(j);
+                }
+            }//X个副本遍历结束，现在已经确定了这个query按照最小HB原则分流到的副本chooseX，以及这个最小HB等于多少
+
+            int margin_us = 0;
+            BigDecimal margin = new BigDecimal(margin_us);//1ms
+            List<BigDecimal> chooseCostList = new ArrayList<BigDecimal>();
+            for(int c=0;c<chooseX.size();c++) {
+                chooseCostList.add(chooseCost);
+            }
+            for(int j=0;j<X;j++) { //重新遍历一遍，对分流模糊一层
+                if(chooseX.contains(j)) {
+                    continue;
+                }
+                if(recordCost[j].subtract(chooseCost).compareTo(margin)==-1){
+                    chooseX.add(j);
+                    chooseCostList.add(recordCost[j]);
+                }
+            }
+
+            qchooseX.add(chooseX);
+            //接下来更新XBload和XRload
+            int chooseNumber = chooseX.size();
+            BigDecimal averageQPer = new BigDecimal(qper).divide(new BigDecimal(chooseNumber),10, RoundingMode.HALF_UP);
+            //BigDecimal averageHB = chooseCost.multiply(averageQPer);
+            for(int j=0;j<chooseNumber;j++) {
+                int choose = chooseX.get(j);
+                XCostload[choose]=XCostload[choose].add(chooseCostList.get(j).multiply(averageQPer)); // note 光是.add是不行的 要赋值！
+            }
+        }
+
+        // max(sum HB)的max
+        List<Integer> maxR=new ArrayList<Integer>();
+        Cost = XCostload[0];
+        maxR.add(0);
+        for(int i=1;i<X;i++) {
+            int res = XCostload[i].compareTo(Cost);
+            if(res == 1) {
+                maxR.clear();
+                maxR.add(i);
+                Cost = XCostload[i];
+            }
+            else if(res == 0) {
+                maxR.add(i);
+            }
+        }
+
+        //打印结果
+//        System.out.print(String.format("Cost:%.2f us| ",Cost));
+        pw.write(String.format("%.2f,,",Cost));
+        double sumLoad = 0;
+        for(int i=0;i<X;i++) {
+//            System.out.print(String.format("ck%d%s:%.2f us,",i+1,xackSeq[i],XCostload[i])); // 用查询执行耗时作为load负载评价
+            pw.write(String.format("R%d%s,%.2f,",i+1,xackSeq[i],XCostload[i])); // 用查询执行耗时作为load负载评价
+            sumLoad += XCostload[i].doubleValue();
+        }
+        // 计算load标准差 标准差能反映一个数据集的离散程度
+        double averageLoad = sumLoad/X;
+        double tmp = 0;
+        for(int i=0;i<X;i++) {
+            tmp += (XCostload[i].doubleValue()-averageLoad)*(XCostload[i].doubleValue()-averageLoad);
+        }
+        tmp = Math.sqrt(tmp/X);
+        pw.write(tmp+",");
+
+        pw.write(",");
+        for(int i=0;i<qnum; i++) {
+//            System.out.print(String.format("|q%d->",i+1));
+            List<Integer> chooseX = qchooseX.get(i);
+            for(int j=0;j<chooseX.size();j++) {
+//                System.out.printf("R%d",chooseX.get(j)+1);
+                pw.write(String.format("R%d",chooseX.get(j)+1));
+                if(j!=chooseX.size()-1) {
+                    //System.out.print(",");
+                    pw.write("|");
+                }
+            }
+            if(i!=qnum-1) {
+                pw.write(",");
+            }
+            else {
+                pw.write("\n");
+            }
+        }
+    }
+
 
 
     /**
@@ -282,18 +438,45 @@ public class Unify_Mara {
 
 
     public void combine() {
-        System.out.println("----------------------------------------------------");
-        // 第一步： SA找到Cost代价近似最小的一组解
-        SA_b();
-        System.out.println("step1完成: SA找到HBCost近似最小的"+ackSeq_best_step.size()+"个近似最优解:");
-        for(XAckSeq xackSeq: ackSeq_best_step) {
-            //System.out.print(xackSeq+": ");
-            calculate(xackSeq.xackSeq);
-//            Output = xackSeq;
-        } // 此时结束之后Output以及unify中的所有属性都是ackSeq_best_step2中最后一个元素的计算结果
-        System.out.println("目标值HB近似最小为："+Cost_best);
-//        System.out.println("算法给出一个最后的结果为: ");
-//        calculate(Output.xackSeq);
+        PrintWriter pw = null;
+        try {
+            pw = new PrintWriter(new FileOutputStream("unify_Mara_obscure_res1.csv"));
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        pw.write("Cost,,");
+        for(int i=0;i<X;i++) {
+            pw.write("R"+(i+1)+"_ackSeq,");
+            pw.write("R"+(i+1)+"_loadCost,");
+        }
+        pw.write("stdev.p,,");
+        int qnum=queries.size();
+        for(int i=0;i<qnum;i++){
+            pw.write("q"+(i+1));
+            if(i!=qnum-1){
+                pw.write(",");
+            }
+            else {
+                pw.write("\n");
+            }
+        }
+
+        int loop=10;
+        for(int id = 0;id<loop; id++) {
+            System.out.println("----------------------------------------------------");
+            // 第一步： SA找到Cost代价近似最小的一组解
+            SA_b();
+            System.out.println("step完成: SA找到Cost近似最小的" + ackSeq_best_step.size() + "个近似最优解:");
+            for (XAckSeq xackSeq : ackSeq_best_step) {
+                calculate(xackSeq.xackSeq);
+                calculate(xackSeq.xackSeq, pw);
+            } // 此时结束之后Output以及unify中的所有属性都是ackSeq_best_step中最后一个元素的计算结果
+            System.out.println("目标值Cost近似最小为：" + Cost_best + "(us)");
+
+            pw.write("\n");
+        }
+        pw.close();
+
         for(int i=0;i<sqls.size(); i++) {
             System.out.println(sqls.get(i)+":"+queriesPerc.get(i));
         }

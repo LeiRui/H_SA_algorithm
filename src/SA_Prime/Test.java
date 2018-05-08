@@ -43,8 +43,8 @@ public class Test {
 
         // 查询参数
         List<Integer> queriesPerc = new ArrayList();
-        queriesPerc.add(100);
-        queriesPerc.add(3);
+        queriesPerc.add(10);
+        queriesPerc.add(1);
         queriesPerc.add(1);
 
         List<RangeQuery> queries = new ArrayList();
@@ -83,11 +83,15 @@ public class Test {
 //        easyNoDiffTest.getFactCost();
 
 
-        int X = 3;
-        Unify_Mara unify = new Unify_Mara(totalRowNumber,
+        int X = 10;
+        Unify_Mara_obscure unify = new Unify_Mara_obscure(totalRowNumber,
                 ckn, CKdist,
                 rowSize,fetchRowCnt,costModel_k,costModel_b,cost_session_around,cost_request_around,
                 queriesPerc, queries, X);
+//        Unify_Mara unify = new Unify_Mara(totalRowNumber,
+//                ckn, CKdist,
+//                rowSize,fetchRowCnt,costModel_k,costModel_b,cost_session_around,cost_request_around,
+//                queriesPerc, queries, X);
         unify.isDiffReplicated = true;
         unify.combine();
 //        unify.calculate(new AckSeq[]{new AckSeq(new int[]{3,2,1}),
